@@ -47,7 +47,7 @@ def predict(dataset, config, index, train_index=None, train_dataset=None):
     ps = config.model.predict(x.values)
     preds = Series(ps, index=x.index)
     if config.prediction is not None:
-        dataset.data[config.predictions_name] = preds
+        dataset._data[config.predictions_name] = preds
         preds = dataset.make_feature(config.prediction, train_index, force=True)
         preds = preds[preds.columns[0]].reindex(x.index)
     preds.name = ''

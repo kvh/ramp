@@ -1,5 +1,6 @@
 from core import get_dataset, _register_dataset
 from store import ShelfStore, DummyStore
+from configuration import *
 import core
 from features import BaseFeature, Feature, ConstantFeature
 from pandas import concat, DataFrame, Series, Index

@@ -236,10 +236,7 @@ class MissingIndicator(Feature):
 
 class Length(Feature):
     def _create(self, data):
-        cols = []
-        for col in data.columns:
-            cols.append( data[col].map(lambda x: len(x) + 1))
-        return concat(cols, keys=data.columns, axis=1)
+        return data.applymap(lambda x: len(x) + 1)
 
 class Normalize(Feature):
     def _create(self, data):
@@ -268,7 +265,7 @@ class Discretize(Feature):
         return self.values[-1]
 
     def _create(self, data):
-        return data.map(self.discretize)
+        return data.applymap(self.discretize)
 
 
 
@@ -282,10 +279,7 @@ class Map(Feature):
         self._name = name
 
     def _create(self, data):
-        cols = []
-        for col in data.columns:
-            cols.append( data[col].map(self.function))
-        return concat(cols, keys=data.columns, axis=1)
+        return data.applymap(self.function)
 
 # def log_plus_one(x):
 #     return math.log(x + 1)
@@ -299,10 +293,7 @@ class Power(Feature):
         super(Power, self).__init__(feature)
 
     def _create(self, data):
-        cols = []
-        for col in data.columns:
-            cols.append( data[col].map(lambda x: x ** self.power))
-        return concat(cols, keys=data.columns, axis=1)
+        return data.applymap(lambda x: x ** self.power)
 
 class GroupMap(Feature):
     def __init__(self, feature, function, name=None, **groupargs):
@@ -345,7 +336,7 @@ class Contain(Feature):
         self._name = self._name + '(%s,%s)' %(min, max)
 
     def _create(self, data):
-        return data.map(lambda x: contain(x, self.min, self.max))
+        return data.applymap(lambda x: contain(x, self.min, self.max))
 
 
 class ReplaceOutliers(Feature):
