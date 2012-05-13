@@ -95,7 +95,7 @@ class TestTrainedFeature(unittest.TestCase):
         # train_index has not been set, should use all of training data
         res = f.create(self.ds)
         self.assertEqual(res.shape, (self.n,1))
-        self.assertEqual(res.columns, ['Predictions[TestPredictor,1 features]() [a7226730]'])
+        self.assertEqual(list(res.columns), ['Predictions[TestPredictor,1 features]() [01dd9cd6]'])
         self.assertEqual(est.fitx.shape, (len(self.ds.train_index),1))
 
         #assert_almost_equal(res, self.data['a'])

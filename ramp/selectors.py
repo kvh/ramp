@@ -5,33 +5,58 @@ import hashlib
 import copy
 import numpy as np
 from sklearn import cross_validation, ensemble, linear_model
-
+from utils import get_hash
 
 class Selector(object):
     def __repr__(self):
         return '%s(%s)'%(self.__class__.__name__, _pprint(self.__dict__))
 
-    @property
-    def storable_hash(self):
-        return repr(self)
-
-    #@store
-    def sets_config(self, ds, config):
+    def sets_config(self, ds, config, index):
+        try:
+            return ds.store.load('%r-%r-%s'%(config.features, config.target,
+                get_hash(index)))
+        except KeyError:
+            pass
         x = ds.get_train_x(config.features)
         y = ds.get_train_y(config.target)
-        return self.sets(x, y)
+        sets = self.sets(x, y)
+        ds.store.save('%r-%r'%(config.features, config.target), sets)
+        return sets
 
 
 class RandomForestSelector(Selector):
 
-    def __init__(self, n=100, thresh=None, min_=True, classifier=False, seed=2345):
+    def __init__(self, n=100, thresh=None, min_=True, classifier=False,
+            seed=2345, verbose=False):
         self.n = n
         self.min = min_
         self.thresh = thresh
         self.seed = seed
         self.classifier = classifier
+        self.verbose = verbose
 
     def sets(self, x, y):
+        cls = ensemble.RandomForestRegressor
+        if self.classifier:
+            cls = ensemble.RandomForestClassifier
+        rf = cls(n_estimators=self.n,
+                compute_importances=True,
+                random_state=self.seed,
+                n_jobs=-1)
+        rf.fit(x.values, y.values)
+        importances = rf.feature_importances_
+        imps = sorted(zip(importances, x.columns),
+                reverse=True)
+        if self.verbose:
+            for i, x in enumerate(imps):
+                imp, f = x
+                print '%d\t%0.4f\t%s'%(i,imp, f)
+        if self.thresh:
+            imps = [t for t in imps if t[0] > self.thresh]
+        sets = [[t[1] for t in imps[:i+1]] for i in range(len(imps))]
+        return sets
+
+    def sets_cv(self, x, y):
         totals = [0]*len(x.columns)
         if self.min:
             totals = [1000] * len(x.columns)

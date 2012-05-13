@@ -17,13 +17,14 @@ class Configuration(object):
             if predictions_name is None:
                 raise ValueError("If you provide a prediction feature, you "
                 "must also specify a _unique_ 'predictions_name'")
-        self.target = target if isinstance(target, BaseFeature) else Feature(target)
+        self.target = target if isinstance(target, BaseFeature) or target is None else Feature(target)
         self.prediction = prediction if isinstance(prediction, BaseFeature) or prediction is None else Feature(prediction)
         self.predictions_name = predictions_name
         if actual is None:
             actual = self.target
         self.actual = actual if isinstance(actual, BaseFeature) else Feature(actual)
-        self.features = [f if isinstance(f, BaseFeature) else Feature(f) for f in features]
+        self.features = [f if isinstance(f, BaseFeature) else Feature(f) for f
+                in features] if features else None
         self.metric = metric
         self.model = model
         self.column_subset = column_subset
@@ -33,6 +34,13 @@ class Configuration(object):
                 self.__class__.__name__,
                 _pprint(self.__dict__))
 
+    def __str__(self):
+        return '%s\n\tmodel: %s\n\t%d features\n\ttarget: %s' % (
+            'Configuration',
+            self.model,
+            len(self.features),
+            self.target
+        )
     # @property
     # def storable_hash(self):
     #     return repr(self)

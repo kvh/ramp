@@ -1,4 +1,4 @@
-from base import Feature, DummyFeature
+from base import ComboFeature, Feature, DummyFeature
 from .. import models
 # from ..core import Storable, store, get_key, get_dataset
 from ..utils import make_folds
@@ -121,3 +121,29 @@ class CVPredictions(Predictions):
         data = concat(preds, axis=0)
         return data
 
+
+class FeatureSelector(ComboFeature):
+    def __init__(self, features, selector, target, n_keep, trained=True):
+        super(FeatureSelector, self).__init__(features)
+        self.selector = selector
+        self.n_keep = n_keep
+        self.target = target
+        self.trained = trained
+        self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
+
+    def is_trained(self):
+        return self.trained
+
+    def select(self, x, y):
+        sets = self.selector.sets(x, y)
+        try:
+            return sets[self.n_keep]
+        except IndexError:
+            return sets[-1]
+
+    def combine(self, datas):
+        data = concat(datas, axis=1)
+        y = self.dataset.get_train_y(self.target, self.train_index)
+        x = data.reindex(self.train_index)
+        cols = self.select(x, y)
+        return data[cols]

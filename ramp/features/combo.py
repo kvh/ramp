@@ -27,7 +27,6 @@ class ComboMap(ComboFeature):
         for d in datas[1:]:
             if isinstance(d, DataFrame):
                 if len(d.columns) == 1:
-                    print "here", d.columns[0]
                     d = d[d.columns[0]]
                 else:
                     raise NotImplementedError
@@ -51,23 +50,17 @@ class Multiply(ComboMap):
 class Interactions(ComboFeature):
     def combine(self, datas):
         cols = []
-        names = []
-        n = len(datas)
+        colnames = []
+        data = concat(datas, axis=1)
+        n = len(data.columns)
         for i in range(n):
-            d1 = datas[i]
+            d1 = data[data.columns[i]]
             for j in range(i+1, n):
-                d2 = datas[j]
-                 # if isinstance(d2, DataFrame):
-                #     d2, d1 = d1, d2
-                d = d1.mul( d2, axis=0)
-                colnames = ['%s, %s' % (c, d2.name) for c in d1.columns]
-                d.columns = colnames
+                d2 = data[data.columns[j]]
+                d = d1.mul( d2)
+                colnames.append('%s, %s' % (d1.name, d2.name))
                 cols.append(d)
-                # TODO will get duplicate names here for data frame?
-                # names.append(['%s,%s' % (c, d2.name) for c in d1.columns])
-                # names.append(self.features[i].column_name + '_BY_' +
-                #     self.features[j].column_name)
-        return concat(cols, axis=1)
+        return concat(cols, keys=colnames, axis=1)
 
 class OutlierCount(ComboFeature):
     def __init__(self, features, stdevs=5):
@@ -105,8 +98,6 @@ class SVDDimensionReduction(ComboFeature):
         self._name = self._name + '_%s'%(n_keep if n_keep else pct_keep)
 
     def combine(self, datas):
-        # ensure all items are dataframes
-        datas = [DataFrame(d) for d in datas]
         data = concat(datas, axis=1)
         nvecs = self.n_keep if self.n_keep else int(self.pct_keep * len(data.columns))
         pca = PCA(n_components=nvecs)
@@ -115,28 +106,3 @@ class SVDDimensionReduction(ComboFeature):
                 index=data.index)
         return df
 
-class FeatureSelector(ComboFeature):
-    def __init__(self, features, selector, target, n_keep):
-        super(FeatureSelector, self).__init__(features)
-        self.selector = selector
-        self.n_keep = n_keep
-        self.target = target
-        self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
-
-    def select(self, x, y):
-        sets = self.selector.sets(x, y)
-        try:
-            s = sets[self.n_keep]
-        except IndexError:
-            s = sets[-1]
-        print "selecting %d sets"%len(s)
-        return s
-
-    def combine(self, datas):
-        # ensure all items are dataframes
-        datas = [DataFrame(d) for d in datas]
-        data = concat(datas, axis=1)
-        y = self.dataset.get_train_y(self.target)
-        x = data.reindex(y.index)
-        cols = self.select(x, y)
-        return data[cols]

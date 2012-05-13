@@ -187,6 +187,7 @@ class ComboFeature(BaseFeature):
         self.dataset.store.save(self.unique_name, data)
         if self.is_trained():
             del self.train_index
+        if hasattr(self, 'train_dataset'):
             del self.train_dataset
         return data
 
@@ -233,6 +234,14 @@ class MissingIndicator(Feature):
             missing.name = 'missing_%s'%col
             data.append(missing)
         return data
+
+class FillMissing(Feature):
+    def __init__(self, feature, fill_value):
+        self.fill_value = fill_value
+        super(FillMissing, self).__init__(feature)
+
+    def _create(self, data):
+        return data.fillna(self.fill_value)
 
 class Length(Feature):
     def _create(self, data):
@@ -281,8 +290,23 @@ class Map(Feature):
     def _create(self, data):
         return data.applymap(self.function)
 
-# def log_plus_one(x):
-#     return math.log(x + 1)
+class AsFactor(Feature):
+    def _create(self, data):
+        assert(len(data.columns) == 1)
+        factors = set(data[data.columns[0]])
+        mapping = dict(zip(factors, range(len(factors))))
+        return data.applymap(mapping.get)
+
+class AsFactorIndicators(Feature):
+    def _create(self, data):
+        assert(len(data.columns) == 1)
+        col = data.columns[0]
+        factors = set(data[col])
+        for f in list(factors)[:-1]:
+            data['%s-%s'%(f, col)] = data[col].map(lambda x: int(x == f))
+        del data[col]
+        return data
+
 class Log(Map):
     def __init__(self, feature):
         super(Log, self).__init__(feature, math.log)
@@ -378,26 +402,7 @@ class ColumnSubset(Feature):
         return data[cols]
 
 
-class FeatureSelector(Feature):
-    def __init__(self, feature, selector, target, n_keep):
-        super(FeatureSelector, self).__init__(feature)
-        self.selector = selector
-        self.n_keep = n_keep
-        self.target = target
-        self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
 
-    def select(self, x, y):
-        sets = self.selector.sets(x, y)
-        try:
-            return sets[self.n_keep]
-        except IndexError:
-            return sets[-1]
-
-    def _create(self, data):
-        y = self.dataset.get_train_y(self.target)
-        x = data.reindex(y.index)
-        cols = self.select(x, y)
-        return data[cols]
 
 
 import combo
