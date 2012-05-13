@@ -9,33 +9,36 @@ providing a simple, declarative syntax for
 exploring features, algorithms and transformations quickly and
 efficiently.
 
-#### Complex feature transformations
-Chain basic feature transformations:
+### Complex feature transformations
+Chain features, perform basic arithmetic:
+
     Normalize(Log('x'))
     Interactions([Log('x1'), (F('x2') + F('x3')) / 2])
 
-Reduce feature dimension
+Reduce feature dimension:
+
     SVDDimensionReduction([F('x%d'%i) for i in range(100)], n_keep=20)
 
-Incorporate residuals or predictions to blend with other models
+Incorporate residuals or predictions to blend with other models:
+
     Residuals(config_model1) + Predictions(config_model2)
 
 Any feature that uses the target variable will automatically respect the
 current training and test sets.
 
-#### Caching
+### Caching
 Ramp caches and stores on disk (or elsewhere if you want) all features and models it
 computes, so nothing is recomputed unnecessarily. Results are stored and can
 be retrieved, compared, blended, and reused between runs.
 
-#### Easily extensible
+### Easily extensible
 Ramp has a simple API, allowing you to plug in estimators from
 scikit-learn, rpy2 and elsewhere, or build your own feature
 transformations, metrics and feature selectors using python's vast
 libraries.
 
 
-### Quick example
+## Quick example
     import urllib2
     import tempfile
     import pandas
