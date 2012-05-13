@@ -13,10 +13,13 @@ efficiently.
 Chain basic feature transformations:
     Normalize(Log('x'))
     Interactions([Log('x1'), (F('x2') + F('x3')) / 2])
+
 Reduce feature dimension
     SVDDimensionReduction([F('x%d'%i) for i in range(100)], n_keep=20)
+
 Incorporate residuals or predictions to blend with other models
     Residuals(config_model1) + Predictions(config_model2)
+
 Any feature that uses the target variable will automatically respect the
 current training and test sets.
 
