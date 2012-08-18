@@ -8,6 +8,11 @@ from sklearn import cross_validation, ensemble, linear_model
 
 debug = False
 
+""" model fitting has no caching currently. for one, not that useful
+since you usually want to run different models/features/training subsets. also,
+hard to implement.
+"""
+
 
 def fit(dataset, config, index=None):
     x = dataset.get_train_x(config.features, index)
@@ -22,7 +27,11 @@ def fit(dataset, config, index=None):
         print "Fitting model '%s' for dataset '%s'." % (config.model.__name__,
                 dataset.display_name)
     config.model.fit(x.values, y.values)
+
+    config.update_reporters_with_model(config.model)
+
     return x.columns
+
 
 def predict(dataset, config, index, train_index=None, train_dataset=None):
     if train_dataset is None:
@@ -53,6 +62,7 @@ def predict(dataset, config, index, train_index=None, train_dataset=None):
     preds.name = ''
     return preds
 
+
 def cv(dataset, config, folds=5, repeat=1, save=False):
     idx = dataset.train_index
     # TODO: too much overloading on folds here
@@ -61,12 +71,15 @@ def cv(dataset, config, folds=5, repeat=1, save=False):
     scores = []
     for train, test in folds:
         preds = predict(dataset, config, test, train)
-        scores.append(config.metric.score(dataset.get_train_y(config.actual, test),
+        actuals = dataset.get_train_y(config.actual, test)
+        config.update_reporters_with_predictions(actuals, preds)
+        scores.append(config.metric.score(actuals,
             preds))
     scores = np.array(scores)
     if save:
         dataset.save_models([(scores, copy.copy(config))])
     return scores
+
 
 def print_scores(scores):
     print "%0.3f (+/- %0.3f) [%0.3f,%0.3f]" % (

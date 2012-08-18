@@ -24,6 +24,7 @@ class ShelfStore(object):
         return self._shelf
 
     def register_uncachable(self, un):
+        """ any key containing the substring `un` will NOT be cached """
         self._uncachables.add(un)
 
     def delete(self, keypart):

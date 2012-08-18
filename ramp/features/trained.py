@@ -48,11 +48,14 @@ class TrainedFeature(Feature):
     #     return self.predict(data)
 
 class Predictions(Feature):
-    def __init__(self, config, name=None, cv_folds=5, external_dataset_name=None):
+
+    def __init__(self, config, name=None, cv_folds=5,
+            external_dataset_name=None, cache=False):
         self.cv_folds = cv_folds
         self.config = config
         self.external_dataset_name=external_dataset_name
         self.feature = DummyFeature()
+        self._cacheable = cache
         self.trained = True
         super(Predictions, self).__init__(self.feature)
         if self.external_dataset_name is not None:
@@ -90,12 +93,15 @@ class Predictions(Feature):
 
 
 class Residuals(Predictions):
+
     def _predict(self):
         preds = models.predict(self.dataset, self.config,
                 self.dataset.train_index, self.train_index, self.train_dataset)
         return self.dataset.get_train_y(target=self.config.actual) - preds
 
+
 class CVPredictions(Predictions):
+
     def _predict(self):
         if self.train_index is None:
             raise ValueError("A training index must be specified to create a "
@@ -123,12 +129,15 @@ class CVPredictions(Predictions):
 
 
 class FeatureSelector(ComboFeature):
-    def __init__(self, features, selector, target, n_keep, trained=True):
+
+    def __init__(self, features, selector, target, n_keep=50, trained=True,
+            cache=False):
         super(FeatureSelector, self).__init__(features)
         self.selector = selector
         self.n_keep = n_keep
         self.target = target
         self.trained = trained
+        self._cacheable = cache
         self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
 
     def is_trained(self):

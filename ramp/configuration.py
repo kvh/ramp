@@ -1,18 +1,21 @@
-from features import BaseFeature, Feature
+from features.base import BaseFeature, Feature
 from utils import _pprint
 import copy
 
+
 class Configuration(object):
+
     DEFAULT_PREDICTIONS_NAME = '$predictions'
+
     def __init__(self, target=None, features=None, metric=None, model=None,
             column_subset=None, prediction=None, predictions_name=None,
-            actual=None):
+            actual=None, reporters=None):
         self.set_attrs(target, features, metric, model,
-                column_subset, prediction, predictions_name, actual)
+                column_subset, prediction, predictions_name, actual, reporters)
 
     def set_attrs(self, target=None, features=None, metric=None, model=None,
             column_subset=None, prediction=None,
-            predictions_name=None, actual=None):
+            predictions_name=None, actual=None, reporters=None):
         if prediction is not None:
             if predictions_name is None:
                 raise ValueError("If you provide a prediction feature, you "
@@ -28,6 +31,9 @@ class Configuration(object):
         self.metric = metric
         self.model = model
         self.column_subset = column_subset
+        self.reporters = reporters or []
+        for r in self.reporters:
+            r.set_config(self)
 
     def __repr__(self):
         return '%s(%s)' % (
@@ -41,9 +47,6 @@ class Configuration(object):
             len(self.features),
             self.target
         )
-    # @property
-    # def storable_hash(self):
-    #     return repr(self)
 
     def update(self, dct):
         d = self.__dict__.copy()
@@ -65,6 +68,16 @@ class Configuration(object):
             if kwargs['model'].__class__!= self.model.__class__:
                 return False
         return True
+
+    def update_reporters_with_model(self, model):
+        for reporter in self.reporters:
+            reporter.update_with_model(model)
+
+    def update_reporters_with_predictions(self, actuals, predictions):
+        for reporter in self.reporters:
+            reporter.update_with_predictions(actuals, predictions)
+
+
 
 class ConfigFactory(object):
     def __init__(self, base_config, **kwargs):

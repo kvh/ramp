@@ -14,6 +14,7 @@ import os, sys
 from pandas.util.testing import assert_almost_equal
 from test_models import lm
 
+
 def strip_hash(s):
     return s[:-11]
 

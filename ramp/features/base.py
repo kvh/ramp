@@ -9,8 +9,15 @@ from hashlib import md5
 re_object_repr = re.compile(r'<([.a-zA-Z0-9_ ]+?)\sat\s\w+>')
 from ..utils import _pprint, get_hash
 
+def get_single_column(df):
+    assert(len(df.columns) == 1)
+    return df[df.columns[0]]
+
 
 class BaseFeature(object):
+
+    _cacheable = True
+
     def __init__(self, feature):
         if not isinstance(feature, basestring):
             raise ValueError('Base feature must be a string')
@@ -48,7 +55,9 @@ class BaseFeature(object):
     def __pow__(self, power):
         return Power(self, power)
 
+
 class ConstantFeature(BaseFeature):
+
     def __init__(self, feature):
         if not isinstance(feature, int) and not isinstance(feature, float):
             raise ValueError('Constant feature must be a number')
@@ -60,15 +69,21 @@ class ConstantFeature(BaseFeature):
                 index=dataset._data.index,
                 columns=['%s'%self.feature])
 
+
 class DummyFeature(BaseFeature):
+
     def __init__(self):
         self.feature = ''
 
     def create(self, dataset, *args, **kwargs):
         return dataset._data
 
+
 class ComboFeature(BaseFeature):
+
     hash_length = 8
+    _cacheable = True
+
     def __init__(self, features):
         self.features = []
         if not isinstance(features, list) and not isinstance(features, tuple):
@@ -167,6 +182,7 @@ class ComboFeature(BaseFeature):
     #         feature.set_train_index(index)
 
     def create(self, dataset, train_index=None, force=False):
+        """ This is the prep for creating features. Has caching logic. """
         self.dataset = dataset
         if self.is_trained():
             self.train_index = train_index
@@ -178,17 +194,28 @@ class ComboFeature(BaseFeature):
                 self.dataset.name)
             pass
         datas = []
+
+        # recurse
         for feature in self.features:
             data = feature.create(dataset, train_index, force)
+            # copy the dataframe to isolate side effects
             # TODO: is this really necessary? Can we enforce immutability?
             data = DataFrame(data.copy())
             datas.append(data)
+
+        # actually apply the feature
         data = self._create(datas)
-        self.dataset.store.save(self.unique_name, data)
+
+        # cache it
+        if self._cacheable:
+            self.dataset.store.save(self.unique_name, data)
+
+        # delete state attrs. features are stateless!
         if self.is_trained():
             del self.train_index
         if hasattr(self, 'train_dataset'):
             del self.train_dataset
+
         return data
 
     def _create(self, datas):
@@ -196,7 +223,9 @@ class ComboFeature(BaseFeature):
         data.columns = data.columns.map(self.column_rename)
         return data
 
+
 class Feature(ComboFeature):
+
     def __init__(self, feature):
         super(Feature, self).__init__([feature])
         self.feature = self.features[0]
@@ -279,6 +308,7 @@ class Discretize(Feature):
 
 
 class Map(Feature):
+
     def __init__(self, feature, function, name=None):
         super(Map, self).__init__(feature)
         self.function = function
@@ -290,14 +320,23 @@ class Map(Feature):
     def _create(self, data):
         return data.applymap(self.function)
 
+
 class AsFactor(Feature):
+
     def _create(self, data):
-        assert(len(data.columns) == 1)
-        factors = set(data[data.columns[0]])
-        mapping = dict(zip(factors, range(len(factors))))
-        return data.applymap(mapping.get)
+        factors = set(get_single_column(data))
+        # TODO: is this state?
+        self.factors = zip(factors, range(len(factors)))
+        self.mapping = dict(self.factors)
+        self.inverse = dict([(v, k) for k, v in self.mapping.items()])
+        return data.applymap(self.mapping.get)
+
+    def get_names(self, factor):
+        return self.inverse.get(factor)
+
 
 class AsFactorIndicators(Feature):
+
     def _create(self, data):
         assert(len(data.columns) == 1)
         col = data.columns[0]
@@ -306,6 +345,17 @@ class AsFactorIndicators(Feature):
             data['%s-%s'%(f, col)] = data[col].map(lambda x: int(x == f))
         del data[col]
         return data
+
+
+class IndicatorEquals(Feature):
+
+    def __init__(self, feature, value):
+        super(IndicatorEquals, self).__init__(feature)
+        self.value = value
+
+    def _create(self, data):
+        return data.applymap(lambda x: int(x==self.value))
+
 
 class Log(Map):
     def __init__(self, feature):
