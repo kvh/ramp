@@ -325,15 +325,23 @@ class ClosestDoc(Feature):
     def _create(self, data):
         return Series(self.score(data), index=data.index, name=data.name)
 
-# chkr = SpellChecker("en_US")
-from aspell import Speller
-chkr = Speller()
+
+chkr = None
+try:
+    from aspell import Speller
+    chkr = Speller()
+except ImportError:
+    pass
+
 def count_spell_errors(toks, exemptions):
     if not toks:
         return 0
     return sum([not chkr.check(t) for t in toks if t not in exemptions])
+
 class SpellingErrorCount(Feature):
     def __init__(self, feature, exemptions=None):
+        if not chkr:
+            raise NameError("You need to install the python aspell library")
         super(SpellingErrorCount, self).__init__(feature)
         self.exemptions = exemptions if exemptions else set()
 
