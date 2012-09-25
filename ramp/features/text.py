@@ -218,18 +218,9 @@ class NgramCounts(Feature):
     def __init__(self, feature, mindocs=50, maxterms=10000, maxdocs=1.,
             verbose=False):
         super(NgramCounts, self).__init__(feature)
-        # self.mindocs = mindocs
-        # self.maxterms = maxterms
-        # self.maxdocs = maxdocs
-        # self.data_dir = get_setting('DATA_DIR')
-        # self.force = force
-        # self.tokenizer = tokenize
+        self._name = self._name + '_%d,%d,%f'%(mindocs, maxterms, maxdocs)
         self.verbose = verbose
         self.dictionary = Dictionary(mindocs, maxterms, maxdocs)
-        # self._hash = self._make_hash(
-        #         mindocs,
-        #         maxterms,
-        #         maxdocs)
 
     def _create(self, data):
         data = get_single_column(data)
@@ -249,7 +240,9 @@ class NgramCounts(Feature):
 
 import nltk
 class TreebankTokenize(Feature):
+
     tokenizer = nltk.tokenize.treebank.TreebankWordTokenizer()
+
     def _create(self, data):
         return data.applymap(self.tokenizer.tokenize)
 

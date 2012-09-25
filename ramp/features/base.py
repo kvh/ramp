@@ -1,4 +1,3 @@
-#from ..core import Storable, store, get_key
 from pandas import Series, DataFrame, concat
 import numpy as np
 import random
@@ -8,6 +7,7 @@ import re
 from hashlib import md5
 re_object_repr = re.compile(r'<([.a-zA-Z0-9_ ]+?)\sat\s\w+>')
 from ..utils import _pprint, get_hash
+
 
 def get_single_column(df):
     assert(len(df.columns) == 1)
@@ -188,10 +188,13 @@ class ComboFeature(BaseFeature):
             self.train_index = train_index
         try:
             if force: raise KeyError
-            return self.dataset.store.load(self.unique_name)
-        except KeyError:
-            print "creating '%s' for dataset '%s'" % (self.unique_name,
+            d = self.dataset.store.load(self.unique_name)
+            print "loading '%s' for dataset '%s'" % (self.unique_name,
                 self.dataset.name)
+            return d
+        except KeyError:
+            print "creating '%s' for dataset '%s'..." % (self.unique_name,
+                self.dataset.name),
             pass
         datas = []
 
@@ -215,7 +218,7 @@ class ComboFeature(BaseFeature):
             del self.train_index
         if hasattr(self, 'train_dataset'):
             del self.train_dataset
-
+        print "done"
         return data
 
     def _create(self, datas):
@@ -236,10 +239,13 @@ class Feature(ComboFeature):
             self.train_index = train_index
         try:
             if force: raise KeyError
-            return self.dataset.store.load(self.unique_name)
-        except KeyError:
-            print "creating '%s' for dataset '%s'" % (self.unique_name,
+            d = self.dataset.store.load(self.unique_name)
+            print "loading '%s' for dataset '%s'" % (self.unique_name,
                 self.dataset.name)
+            return d
+        except KeyError:
+            print "creating '%s' for dataset '%s'..." % (self.unique_name,
+                self.dataset.name),
             pass
         data = self.feature.create(dataset, train_index, force)
         data = DataFrame(data.copy())
@@ -249,6 +255,8 @@ class Feature(ComboFeature):
         if self.is_trained():
             del self.train_index
             del self.train_dataset
+
+        print "done"
         return data
 
     def _create(self, data):
@@ -326,10 +334,10 @@ class AsFactor(Feature):
     def _create(self, data):
         factors = set(get_single_column(data))
         # TODO: is this state?
-        self.factors = zip(factors, range(len(factors)))
-        self.mapping = dict(self.factors)
-        self.inverse = dict([(v, k) for k, v in self.mapping.items()])
-        return data.applymap(self.mapping.get)
+        factors = zip(factors, range(len(factors)))
+        mapping = dict(factors)
+        self.inverse = dict([(v, k) for k, v in mapping.items()])
+        return data.applymap(mapping.get)
 
     def get_names(self, factor):
         return self.inverse.get(factor)

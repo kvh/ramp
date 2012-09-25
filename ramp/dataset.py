@@ -1,5 +1,5 @@
 from core import get_dataset, _register_dataset
-from store import ShelfStore, DummyStore
+from store import ShelfStore, DummyStore, PickleStore, Store
 from configuration import *
 import core
 from features.base import BaseFeature, Feature, ConstantFeature
@@ -31,11 +31,18 @@ class DataSet(object):
         self.validation_index = validation_index
         self.train_index = data.index - validation_index
         self._cache = {}
-        self.data_dir = data_dir
 
-        if isinstance(store, basestring):
-            self.store = ShelfStore(os.path.join(data_dir, store))
-        elif isinstance(store, ShelfStore):
+        self.data_dir = data_dir
+        ramp_data_dir = os.path.join(data_dir, 'ramp_data')
+        if not os.path.exists(ramp_data_dir):
+            os.makedirs(ramp_data_dir) 
+        dataset_dir = os.path.join(ramp_data_dir, name)
+        if not os.path.exists(dataset_dir):
+            os.makedirs(dataset_dir) 
+
+        if store is None:
+            self.store = PickleStore(dataset_dir)
+        elif isinstance(store, Store):
             self.store = store
         else:
             self.store = DummyStore()
