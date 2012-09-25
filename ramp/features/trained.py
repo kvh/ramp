@@ -144,11 +144,7 @@ class FeatureSelector(ComboFeature):
         return self.trained
 
     def select(self, x, y):
-        sets = self.selector.sets(x, y)
-        try:
-            return sets[self.n_keep]
-        except IndexError:
-            return sets[-1]
+        return self.selector.sets(x, y, self.n_keep)
 
     def combine(self, datas):
         data = concat(datas, axis=1)
@@ -156,3 +152,30 @@ class FeatureSelector(ComboFeature):
         x = data.reindex(self.train_index)
         cols = self.select(x, y)
         return data[cols]
+
+
+class SelectNgramCounts(NgramCounts):
+    # TODO: make generic pre-selector (so intermediate isn't cached)
+    def __init__(self, feature, selector, target, n_keep=50, *args, **kwargs):
+        super(SelectNgramCounts, self).__init__(feature, *args, **kwargs)
+        self.selector = selector
+        self.n_keep = n_keep
+        self.target = target
+        # TODO: is cacheability chained through features properly?
+        self._cacheable = False
+        self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
+
+    def is_trained(self):
+        return True
+
+    def select(self, x, y):
+        return self.selector.sets(x, y, self.n_keep)
+
+    def _create(self, data):
+        data = super(SelectNgramCounts, self)._create(data)
+        y = self.dataset.get_train_y(self.target, self.train_index)
+        x = data.reindex(self.train_index)
+        cols = self.select(x, y)
+        return data[cols]
+
+

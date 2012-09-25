@@ -60,7 +60,7 @@ def predict(dataset, config, index, train_index=None, train_dataset=None):
         preds = dataset.make_feature(config.prediction, train_index, force=True)
         preds = preds[preds.columns[0]].reindex(x.index)
     preds.name = ''
-    return preds
+    return preds, x
 
 
 def cv(dataset, config, folds=5, repeat=1, save=False):
@@ -70,9 +70,9 @@ def cv(dataset, config, folds=5, repeat=1, save=False):
         folds = make_folds(idx, folds, repeat)
     scores = []
     for train, test in folds:
-        preds = predict(dataset, config, test, train)
+        preds, x = predict(dataset, config, test, train)
         actuals = dataset.get_train_y(config.actual, test)
-        config.update_reporters_with_predictions(actuals, preds)
+        config.update_reporters_with_predictions(dataset, x, actuals, preds)
         scores.append(config.metric.score(actuals,
             preds))
     scores = np.array(scores)

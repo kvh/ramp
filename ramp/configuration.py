@@ -73,9 +73,9 @@ class Configuration(object):
         for reporter in self.reporters:
             reporter.update_with_model(model)
 
-    def update_reporters_with_predictions(self, actuals, predictions):
+    def update_reporters_with_predictions(self, dataset, x, actuals, predictions):
         for reporter in self.reporters:
-            reporter.update_with_predictions(actuals, predictions)
+            reporter.update_with_predictions(dataset, x, actuals, predictions)
 
 
 
@@ -94,7 +94,7 @@ class ConfigFactory(object):
         dct = copy.copy(dct)
         k, values = dct.popitem()
         if not hasattr(self.config, k):
-            raise ValueError("'%s' not a valid configuration parameter"%k)
+            raise ValueError("'%s' is not a valid configuration parameter"%k)
         for v in values:
             new_config = copy.copy(config)
             new_config.update({k:v})

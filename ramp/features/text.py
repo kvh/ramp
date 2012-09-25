@@ -348,6 +348,7 @@ class SpellingErrorCount(Feature):
     def _create(self, data):
         return data.map(lambda x : count_spell_errors(x, self.exemptions))
 
+
 spelling_suggestions = {}
 
 import collections

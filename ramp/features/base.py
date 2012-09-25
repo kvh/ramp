@@ -352,6 +352,7 @@ class IndicatorEquals(Feature):
     def __init__(self, feature, value):
         super(IndicatorEquals, self).__init__(feature)
         self.value = value
+        self._name = self._name + '_%s'%value
 
     def _create(self, data):
         return data.applymap(lambda x: int(x==self.value))
