@@ -146,7 +146,7 @@ class LassoPathSelector(Selector):
 
 
 class BinaryFeatureSelector(Selector):
-    """ Only for binary classification and binary(-able) features """
+    """ Only for classification and binary(-able) features """
 
     def __init__(self, type='bns', *args, **kwargs):
         """ type in ('bns', 'acc') 
@@ -156,8 +156,31 @@ class BinaryFeatureSelector(Selector):
 
     def sets(self, x, y, n_keep):
         cnts = y.value_counts()
-        assert(len(cnts) == 2)
         print "Computing binary feature scores for %d features..." % len(x.columns)
+        if len(cnts) > 2:
+            scores = self.round_robin(x, y, n_keep)
+        else:
+            scores = self.rank(x, y)
+        if self.verbose:
+            # just show top few hundred
+            print scores[:200]
+        return [s[1] for s in scores[:n_keep]]
+
+    def round_robin(self, x, y, n_keep):
+        """ Ensures all classes get representative features, not just those with strong features """
+        vals = y.unique()
+        scores = {}
+        for cls in vals:
+            scores[cls] = self.rank(x, np.equal(cls, y).astype('Int64'))
+            scores[cls].reverse()
+        keepers = []
+        while len(keepers) < n_keep:
+            for cls in vals:
+                keepers.append(scores[cls].pop())
+        return keepers
+
+    def rank(self, x, y):
+        cnts = y.value_counts()
         scores = []
         for c in x.columns:
             true_positives = np.count_nonzero(np.logical_and(x[c], y))
@@ -172,10 +195,7 @@ class BinaryFeatureSelector(Selector):
                 score = abs(tpr - fpr)
             scores.append((score, c))
         scores.sort(reverse=True)
-        if self.verbose:
-            # just show top few hundred
-            print scores[:200]
-        return [s[1] for s in scores[:n_keep]]
+        return scores
 
 class InformationGainSelector(Selector):
     """ Only for binary classification """

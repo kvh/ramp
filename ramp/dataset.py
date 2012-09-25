@@ -142,7 +142,7 @@ class DataSet(object):
 
     def get_saved_configurations(self, **kwargs):
         try:
-            saved = self.load('saved_scores')
+            saved = self.store.load('saved_scores')
         except KeyError:
             saved = []
         if kwargs:
@@ -153,7 +153,10 @@ class DataSet(object):
         """configs: list of (cv_scores, config) """
         saved = self.get_saved_configurations()
         saved.extend(configs)
-        self.dump('saved_scores', saved) #saved[:self.keep_nmodels])
+        self.store.save('saved_scores', saved) #saved[:self.keep_nmodels])
+
+    def save_config(self, config, scores):
+        self.save_configurations((scores, copy.copy(config)))
 
     # def get_best_configuration(self, rank=0, weight_func=None, **kwargs):
     #     saved = self.get_saved_configurations()
