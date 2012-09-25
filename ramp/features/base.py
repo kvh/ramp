@@ -180,6 +180,20 @@ class ComboFeature(BaseFeature):
     #     self.train_index = index
     #     for feature in self.features:
     #         feature.set_train_index(index)
+    def create_data(self, train_index, force):
+        datas = []
+
+        # recurse
+        for feature in self.features:
+            data = feature.create(self.dataset, train_index, force)
+            # copy the dataframe to isolate side effects
+            # TODO: is this really necessary? Can we enforce immutability?
+            #data = DataFrame(data.copy())
+            datas.append(data)
+
+        # actually apply the feature
+        data = self._create(datas)
+        return data
 
     def create(self, dataset, train_index=None, force=False):
         """ This is the prep for creating features. Has caching logic. """
@@ -196,18 +210,8 @@ class ComboFeature(BaseFeature):
             print "creating '%s' for dataset '%s'..." % (self.unique_name,
                 self.dataset.name),
             pass
-        datas = []
 
-        # recurse
-        for feature in self.features:
-            data = feature.create(dataset, train_index, force)
-            # copy the dataframe to isolate side effects
-            # TODO: is this really necessary? Can we enforce immutability?
-            data = DataFrame(data.copy())
-            datas.append(data)
-
-        # actually apply the feature
-        data = self._create(datas)
+        data = self.create_data(train_index, force)
 
         # cache it
         if self._cacheable:
@@ -233,36 +237,18 @@ class Feature(ComboFeature):
         super(Feature, self).__init__([feature])
         self.feature = self.features[0]
 
-    def create(self, dataset, train_index=None, force=False):
-        self.dataset = dataset
-        if self.is_trained():
-            self.train_index = train_index
-        try:
-            if force: raise KeyError
-            d = self.dataset.store.load(self.unique_name)
-            print "loading '%s' for dataset '%s'" % (self.unique_name,
-                self.dataset.name)
-            return d
-        except KeyError:
-            print "creating '%s' for dataset '%s'..." % (self.unique_name,
-                self.dataset.name),
-            pass
-        data = self.feature.create(dataset, train_index, force)
-        data = DataFrame(data.copy())
+    def create_data(self, train_index, force):
+        data = self.feature.create(self.dataset, train_index, force)
+        #data = DataFrame(data.copy())
         data = self._create(data)
         data.columns = data.columns.map(self.column_rename)
-        self.dataset.store.save(self.unique_name, data)
-        if self.is_trained():
-            del self.train_index
-            del self.train_dataset
-
-        print "done"
         return data
 
     def _create(self, data):
         return data
 # handy shortcut
 F = Feature
+
 
 class MissingIndicator(Feature):
     def _create(self, data):

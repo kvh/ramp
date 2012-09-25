@@ -237,6 +237,36 @@ class NgramCounts(Feature):
         return df
 
 
+class SelectNgramCounts(NgramCounts):
+    # TODO: make this generic. pre-selector (so intermediate isn't cached)
+    def __init__(self, feature, selector, target, n_keep=50, train_only=False, *args, **kwargs):
+        super(SelectNgramCounts, self).__init__(feature, *args, **kwargs)
+        self.selector = selector
+        self.n_keep = n_keep
+        self.target = target
+        self.train_only = train_only
+        # TODO: is cacheability chained through features properly?
+        self._cacheable = not train_only 
+        self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
+
+    def is_trained(self):
+        return self.train_only
+
+    def select(self, x, y):
+        return self.selector.sets(x, y, self.n_keep)
+
+    def _create(self, data):
+        data = super(SelectNgramCounts, self)._create(data)
+        if self.train_only:
+            y = self.dataset.get_train_y(self.target, self.train_index)
+            x = data.reindex(self.train_index)
+        else:
+            y = self.dataset.get_train_y(self.target, data.index)
+            x = data
+        cols = self.select(x, y)
+        return data[cols]
+
+
 
 import nltk
 class TreebankTokenize(Feature):
