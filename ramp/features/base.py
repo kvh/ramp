@@ -6,12 +6,31 @@ import math
 import re
 from hashlib import md5
 re_object_repr = re.compile(r'<([.a-zA-Z0-9_ ]+?)\sat\s\w+>')
-from ..utils import _pprint, get_hash
+from ..utils import _pprint, get_np_hashable, get_single_column
 
 
-def get_single_column(df):
-    assert(len(df.columns) == 1)
-    return df[df.columns[0]]
+""" 
+Features are the core of Ramp. They are descriptions of transformations
+that operate on DataFrame columns. 
+
+Things to note:
+    1. Features try to store everything they compute for later reuse. They
+    base cache keys on the pandas index and column name, but not the actual
+    data, so for a given column name and index, a Feature will NOT recompute
+    anything, even if you have changed the value inside. (This applies only in the context of a
+    single storage path. Separate stores will not ever collide of course.)
+    2. Features are called "trained" when they depend on "y" values. For these 
+    features you should specify a train_index so that you do not pollute 
+    cross-validation with test "y" values.
+    3. Features are "prepped" in the context of certain rows ("x" values). For
+    instance, you normalize a column (mean zero, stdev 1) using certain rows. 
+    These prepped values are stored as well so they can be used in "un-prepped"
+    contexts (such as predicting a hold out set)
+    4. Features are *stateless*, except temporarily while being created they
+    have an attached DataContext object. This is hard to enforce in 
+    python unfortunately...
+"""
+
 
 
 class BaseFeature(object):
@@ -33,14 +52,14 @@ class BaseFeature(object):
     def unique_name(self):
         return str(self)
 
-    def is_trained(self):
+    def depends_on_y(self):
         return False
 
-    def set_train_index(self, index):
-        pass
+    def depends_on_other_x(self):
+        return False
 
-    def create(self, dataset, *args, **kwargs):
-        return DataFrame(dataset._data[self.feature].copy(),
+    def create(self, context, *args, **kwargs):
+        return DataFrame(context.data[self.feature],
                 columns=[self.feature])
 
     def __add__(self, other):
@@ -63,20 +82,21 @@ class ConstantFeature(BaseFeature):
             raise ValueError('Constant feature must be a number')
         self.feature = feature
 
-    def create(self, dataset, *args, **kwargs):
+    def create(self, context, *args, **kwargs):
         return DataFrame(
-                [self.feature] * len(dataset._data),
-                index=dataset._data.index,
-                columns=['%s'%self.feature])
+                [self.feature] * len(context.data),
+                index=context.data.index,
+                columns=['%s' % self.feature])
 
 
 class DummyFeature(BaseFeature):
+    """ For testing """
 
     def __init__(self):
         self.feature = ''
 
-    def create(self, dataset, *args, **kwargs):
-        return dataset._data
+    def create(self, context, *args, **kwargs):
+        return context.data
 
 
 class ComboFeature(BaseFeature):
@@ -103,12 +123,8 @@ class ComboFeature(BaseFeature):
         # shallow copy dict so we don't modify references
         dct = self.__dict__.copy()
         # HACK remove ephemeral items
-        if 'dataset' in dct:
-            del dct['dataset']
-        if 'train_index' in dct:
-            del dct['train_index']
-        if 'train_dataset' in dct:
-            del dct['train_dataset']
+        if 'context' in dct:
+            del dct['context']
         return dct
 
     def __repr__(self):
@@ -121,8 +137,6 @@ class ComboFeature(BaseFeature):
 
     def _hash(self):
         s = repr(self)
-        if hasattr(self, 'train_index') and self.train_index is not None:
-            s += '-' + get_hash(self.train_index)
         return md5(s).hexdigest()[:self.hash_length]
 
     @property
@@ -137,6 +151,7 @@ class ComboFeature(BaseFeature):
 
     def save(self, key, value):
         self.dataset.save('%s-%s'%(self.unique_name, key), value)
+
     def load(self, key):
         return self.dataset.load('%s-%s'%(self.unique_name, key))
 
@@ -168,24 +183,21 @@ class ComboFeature(BaseFeature):
                     self._hash())
         return '%s [%s]'%(self._remove_hashes(existing_name),
                     self._hash())
-        # if self._name:
-        #     return '%s(%s)' %(self._name, existing_name
-        #             )
-        # return '%s'%(existing_name)
 
-    def is_trained(self):
-        return any([f.is_trained() for f in self.features])
+    def depends_on_y(self):
+        return any([f.depends_on_y() for f in self.features])
 
-    # def set_train_index(self, index):
-    #     self.train_index = index
-    #     for feature in self.features:
-    #         feature.set_train_index(index)
-    def create_data(self, train_index, force):
+    def depends_on_other_x(self):
+        if hasattr(self, '_prepare'):
+            return True
+        return any([f.depends_on_other_x() for f in self.features])
+
+    def create_data(self, force):
         datas = []
 
         # recurse
         for feature in self.features:
-            data = feature.create(self.dataset, train_index, force)
+            data = feature.create(self.context, force)
             # copy the dataframe to isolate side effects
             # TODO: is this really necessary? Can we enforce immutability?
             #data = DataFrame(data.copy())
@@ -195,33 +207,60 @@ class ComboFeature(BaseFeature):
         data = self._create(datas)
         return data
 
-    def create(self, dataset, train_index=None, force=False):
-        """ This is the prep for creating features. Has caching logic. """
-        self.dataset = dataset
-        if self.is_trained():
-            self.train_index = train_index
+    def get_prep_key(self):
+        hsh = md5(get_np_hashable(self.context.prep_index))
+        if self.depends_on_y():
+            hsh.update(get_np_hashable(self.context.train_index))
+        return self.unique_name + '--prep--' + hsh.hexdigest()
+
+    def get_prep_data(self, data=None, force=False):
         try:
             if force: raise KeyError
-            d = self.dataset.store.load(self.unique_name)
-            print "loading '%s' for dataset '%s'" % (self.unique_name,
-                self.dataset.name)
+            d = self.context.store.load(self.get_prep_key())
             return d
         except KeyError:
-            print "creating '%s' for dataset '%s'..." % (self.unique_name,
-                self.dataset.name),
-            pass
+            if not data:
+                raise KeyError()
+            print "Prepping '%s'" % self.unique_name
+        prep_data = self._prepare(data.reindex(self.context.prep_index))
+        self.context.store.save(self.get_prep_key(), prep_data)
+        return prep_data
 
-        data = self.create_data(train_index, force)
+    def create_key(self):
+        hsh = md5(get_np_hashable(self.context.data.index))
+        if self.depends_on_y():
+            hsh.update(get_np_hashable(self.context.train_index))
+        if self.depends_on_other_x():
+            hsh.update(get_np_hashable(self.context.prep_index))
+        return self.unique_name + '--' + hsh.hexdigest()
+        
+    def create(self, context, force=False):
+        """ This is the prep for creating features. Has caching logic. """
+
+        if hasattr(self, 'context'):
+            print "Warning: existing context on '%s'"%self.unique_name
+
+        self.context = context
+
+        try:
+            if force: raise KeyError
+            d = self.context.store.load(self.create_key())
+            print "loading '%s'" % (self.unique_name)
+            #TODO: repeated... use 'with' maybe?
+            del self.context
+            return d
+        except KeyError:
+            print "creating '%s' ..." % (self.unique_name)
+
+        data = self.create_data(force)
 
         # cache it
         if self._cacheable:
-            self.dataset.store.save(self.unique_name, data)
+            self.context.store.save(self.create_key(), data)
 
         # delete state attrs. features are stateless!
-        if self.is_trained():
-            del self.train_index
-        if hasattr(self, 'train_dataset'):
-            del self.train_dataset
+        del self.context
+
         print "done"
         return data
 
@@ -237,8 +276,8 @@ class Feature(ComboFeature):
         super(Feature, self).__init__([feature])
         self.feature = self.features[0]
 
-    def create_data(self, train_index, force):
-        data = self.feature.create(self.dataset, train_index, force)
+    def create_data(self, force):
+        data = self.feature.create(self.context, force)
         #data = DataFrame(data.copy())
         data = self._create(data)
         data.columns = data.columns.map(self.column_rename)
@@ -258,6 +297,7 @@ class MissingIndicator(Feature):
             data.append(missing)
         return data
 
+
 class FillMissing(Feature):
     def __init__(self, feature, fill_value):
         self.fill_value = fill_value
@@ -266,20 +306,31 @@ class FillMissing(Feature):
     def _create(self, data):
         return data.fillna(self.fill_value)
 
+
 class Length(Feature):
     def _create(self, data):
         return data.applymap(lambda x: len(x) + 1)
 
+
 class Normalize(Feature):
-    def _create(self, data):
-        eps = 1.0e-7
+
+    def _prepare(self, data):
+        cols = {}
         for col in data.columns:
             d = data[col]
             m = d.mean()
             s = d.std()
+            cols[col] = (m, s)
+        return cols
+
+    def _create(self, data):
+        eps = 1.0e-7
+        col_stats = self.get_prep_data(data)
+        for col in data.columns:
+            m, s = col_stats.get(col, (0, 0))
             if s < eps:
                 continue
-            data[col] = d.map(lambda x: (x - m)/s)
+            data[col] = data[col].map(lambda x: (x - m)/s)
         return data
 
 class Discretize(Feature):
@@ -317,24 +368,42 @@ class Map(Feature):
 
 class AsFactor(Feature):
 
+    def __init__(self, feature, levels=None):
+        super(AsFactor, self).__init__(feature)
+        self.levels = levels
+
+    def _prepare(self, data):
+        levels = self.levels
+        if not levels:
+            levels = set(get_single_column(data))
+        factors = zip(levels, range(len(levels)))
+        return factors
+
     def _create(self, data):
-        factors = set(get_single_column(data))
-        # TODO: is this state?
-        factors = zip(factors, range(len(factors)))
+        factors = self.get_prep_data(data)
         mapping = dict(factors)
-        self.inverse = dict([(v, k) for k, v in mapping.items()])
         return data.applymap(mapping.get)
 
     def get_names(self, factor):
-        return self.inverse.get(factor)
+        factors = self.get_prep_data()
+        inverse = dict([(v,k) for k,v in factors])
+        return inverse.get(factor)
 
 
 class AsFactorIndicators(Feature):
 
+    def __init__(self, feature, levels=None):
+        super(AsFactorIndicators, self).__init__(feature)
+        self.levels = levels
+
+    def _prepare(self, data):
+        levels = self.levels
+        if not levels:
+            levels = set(get_single_column(data))
+        return levels
+
     def _create(self, data):
-        assert(len(data.columns) == 1)
-        col = data.columns[0]
-        factors = set(data[col])
+        factors = self.get_prep_data(data)
         for f in list(factors)[:-1]:
             data['%s-%s'%(f, col)] = data[col].map(lambda x: int(x == f))
         del data[col]
@@ -356,6 +425,7 @@ class Log(Map):
     def __init__(self, feature):
         super(Log, self).__init__(feature, math.log)
 
+
 class Power(Feature):
     def __init__(self, feature, power=2):
         self.power = power
@@ -363,8 +433,15 @@ class Power(Feature):
 
     def _create(self, data):
         return data.applymap(lambda x: x ** self.power)
+    
 
 class GroupMap(Feature):
+    """ Applies a function over specific sub-groups of the data
+    Typically this will be with a MultiIndex (hierarchical index).
+    WARNING: this feature is not prepped... """
+
+    #TODO: can we "prep" this??
+
     def __init__(self, feature, function, name=None, **groupargs):
         super(GroupMap, self).__init__(feature)
         self.function = function
@@ -381,16 +458,17 @@ class GroupMap(Feature):
         except ValueError:
             return data.apply(self.function)
 
-class Polynomial(Feature):
+class Powers(Feature):
     def __init__(self, feature, order=2):
         self.order = order
-        super(Polynomial, self).__init__(feature)
+        super(Powers, self).__init__(feature)
 
     def _create(self, data):
         cols = {}
         for i in range(1, self.order + 1):
             cols[data.name + str(i)] = data ** i
         return DataFrame(cols, index=data.index)
+
 
 def contain(x, mn, mx):
     if mx is not None and x > mx: return mx
@@ -409,6 +487,7 @@ class Contain(Feature):
 
 
 class ReplaceOutliers(Feature):
+    # TODO: add prep
     def __init__(self, feature, stdevs=7, replace='mean'):
         super(ReplaceOutliers, self).__init__(feature)
         self.stdevs = stdevs
@@ -445,9 +524,6 @@ class ColumnSubset(Feature):
             cols = self.subset
         print cols
         return data[cols]
-
-
-
 
 
 import combo

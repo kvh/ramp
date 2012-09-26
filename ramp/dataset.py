@@ -12,14 +12,60 @@ import numpy as np
 import re
 import os
 import random
-import models
 import copy
-from utils import _pprint
+from utils import _pprint, get_single_column
 
 __all__ = ['DataSet']
 
 
+def build_target(target, context):
+    y = target.create(context)
+    return get_single_column(y)
+
+
+def build_feature_safe(feature, context):
+    d = feature.create(context)
+
+    # sanity check index is valid
+    assert not d.index - context.data.index
+
+    # columns probably shouldn't be constant...
+    if not isinstance(feature, ConstantFeature):
+        if any(d.std() < 1e-9):
+            print "\n\nWARNING: Feature '%s' has constant column. \n\n" % feature.unique_name
+
+    # we probably dont want NANs here...
+    if np.isnan(d.values).any():
+        # TODO HACK: this is not right.  (why isn't it right???)
+        if not feature.unique_name.startswith(
+                Configuration.DEFAULT_PREDICTIONS_NAME):
+            print "\n\n***** WARNING: NAN in feature '%s' *****\n\n"%feature.unique_name
+
+    return d
+
+
+def build_featureset(features, context):
+    # check for dupes
+    colnames = set([f.unique_name for f in features])
+    assert len(features) == len(colnames), "duplicate feature"
+    if not features:
+        return
+    x = []
+    for feature in features:
+        x.append(build_feature_safe(feature, context))
+    for d in x[1:]:
+        assert (d.index == x[0].index).all(), "Mismatched indices after feature creation"
+    return concat(x, axis=1)
+
+
 class DataSet(object):
+    """ DataSet is a wrapper around a pandas DataFrame. 
+    Columns in the DataFrame should be considered immutable for a 
+    given DataSet name. That is, if you want to
+    change the data in a column (including adding rows), you need 
+    to change the name, or, alternatively, destroy all
+    stored and cached data for the column/DataSet. 
+    """
 
     def __init__(self, data, name, validation_index=None, default_config=None,
             data_dir=None, store=None):
@@ -33,14 +79,15 @@ class DataSet(object):
         self._cache = {}
 
         self.data_dir = data_dir
-        ramp_data_dir = os.path.join(data_dir, 'ramp_data')
-        if not os.path.exists(ramp_data_dir):
-            os.makedirs(ramp_data_dir) 
-        dataset_dir = os.path.join(ramp_data_dir, name)
-        if not os.path.exists(dataset_dir):
-            os.makedirs(dataset_dir) 
+        if data_dir:
+            ramp_data_dir = os.path.join(data_dir, 'ramp_data')
+            if not os.path.exists(ramp_data_dir):
+                os.makedirs(ramp_data_dir)
+            dataset_dir = os.path.join(ramp_data_dir, name)
+            if not os.path.exists(dataset_dir):
+                os.makedirs(dataset_dir)
 
-        if store is None:
+        if data_dir and store is None:
             self.store = PickleStore(dataset_dir)
         elif isinstance(store, Store):
             self.store = store
@@ -72,7 +119,7 @@ class DataSet(object):
         d = feature.create(self, train_index, force)
 
         # sanity check index is valid
-        assert(not d.index - self._data.index)
+        assert not d.index - self._data.index 
 
         # columns probably shouldn't be constant...
         if not isinstance(feature, ConstantFeature):
@@ -91,14 +138,14 @@ class DataSet(object):
     def get_x(self, features, train_index):
         # check for dupes
         colnames = set([f.unique_name for f in features])
-        assert(len(features) == len(colnames))
+        assert len(features) == len(colnames) 
         if not features:
             return
         x = []
         for feature in features:
             x.append(self.make_feature(feature, train_index))
         for d in x[:1]:
-            assert((d.index == x[0].index).all())
+            assert (d.index == x[0].index).all() 
         return concat(x, axis=1)
 
     def get_train_x(self, features, train_index=None):

@@ -39,17 +39,17 @@ class Dictionary(object):
         self.maxterms = maxterms
         self.maxdocs = maxdocs
         self.dictionary = gensim.corpora.Dictionary
-        self.dataset = None
+        self.context = None
         self.force = force
 
     def name(self, docs, type_='dict'):
         return '%s_%s_%s' % (make_docs_hash(docs), type_,
                 '%d,%d,%f'%(self.mindocs, self.maxterms, self.maxdocs))
 
-    def get_dict(self, dataset, docs):
-        self.dataset = dataset
+    def get_dict(self, context, docs):
+        self.context = context
         try:
-            dct = dataset.store.load(self.name(docs))
+            dct = context.store.load(self.name(docs))
             return dct
         except (KeyError, IOError):
             return self._make_dict(docs)
@@ -59,22 +59,22 @@ class Dictionary(object):
         dct.filter_extremes(no_below=self.mindocs, no_above=self.maxdocs,
                 keep_n=self.maxterms)
         # dct.save(self.data_dir + self.name(docs))
-        self.dataset.store.save(self.name(docs), dct)
+        self.context.store.save(self.name(docs), dct)
         return dct
 
-    def get_tfidf(self, dataset, docs):
-        self.dataset = dataset
+    def get_tfidf(self, context, docs):
+        self.context = context
         try:
-            return self.dataset.store.load(
+            return self.context.store.load(
                     self.name(docs, 'tfidf'))
         except (KeyError, IOError):
             return self._make_tfidf(docs)
 
     def _make_tfidf(self, docs):
-        dct = self.get_dict(self.dataset, docs)
+        dct = self.get_dict(self.context, docs)
         # corpus = [dct.doc2bow(d) for d in docs]
         tfidf = gensim.models.TfidfModel(dictionary=dct)
-        self.dataset.store.save(self.name(docs, 'tfidf'), tfidf)
+        self.context.store.save(self.name(docs, 'tfidf'), tfidf)
         return tfidf
 
 
@@ -94,6 +94,11 @@ class TopicModelFeature(Feature):
         self.force = force
         self._name = '%s_%d' %(self._name, num_topics)
 
+    def _prepare(self, data):
+        docs = list(get_single_column(data).values)
+        dct, tfidf, lsi = self.make_engine(docs)
+        return dct, tfidf, lsi
+
     def _create(self, data):
         data = get_single_column(data)
         vecs = None #self.load('topic_vecs')
@@ -104,47 +109,19 @@ class TopicModelFeature(Feature):
 
     def make_engine(self, docs):
         print "building topic model"
-        dct = self.dictionary.get_dict(self.dataset, docs)
+        dct = self.dictionary.get_dict(self.context, docs)
         corpus = [dct.doc2bow(d) for d in docs]
-        tfidf = self.dictionary.get_tfidf(self.dataset, docs)
+        tfidf = self.dictionary.get_tfidf(self.context, docs)
         topic_model = self.topic_modeler(corpus=tfidf[corpus], id2word=dct,
                 num_topics=self.num_topics)
         print topic_model
-        topic_model.save(self.dataset.data_dir + self.topic_model_name)
         return dct, tfidf, topic_model
 
-    @property
-    def vectors_name(self):
-        return self.make_key('vecs')
-    @property
-    def topic_model_name(self):
-        return self._docs_hash + self.topic_modeler.__name__
-
-    def load_engine(self, data):
-        # if self.stored_model:
-        #     dct = self.dictionary.load(self.data_dir + self.stored_model[0])
-        #     tfidf = gensim.models.TfidfModel.load(self.data_dir + self.stored_model[1])
-        #     lsi = self.topic_modeler.load(self.data_dir + self.stored_model[2])
-        #     print "using stored model"
-        # else:
-        dct = self.dictionary.get_dict(self.dataset, data)
-        tfidf = self.dictionary.get_tfidf(self.dataset, data)
-        lsi = self.topic_modeler.load(self.dataset.data_dir + self.topic_model_name)
-        return (dct, tfidf, lsi)
-
-    def make_vectors(self, ds, n=None):
-        docs = list(ds.values)
-        self._docs_hash = make_docs_hash(docs)
-        try:
-            if self.force:
-                dct, tfidf, lsi = self.make_engine(docs)
-            else:
-                dct, tfidf, lsi = self.load_engine(docs)
-        except IOError:
-            dct, tfidf, lsi = self.make_engine(docs)
+    def make_vectors(self, data, n=None):
+        dct, tfidf, lsi = self.get_prep_data(data)
         vecs = []
         print "Making topic vectors"
-        for i, txt in enumerate(ds):
+        for i, txt in enumerate(data):
             topic_vec = dict(
                     lsi[tfidf[dct.doc2bow(
                         txt)]]
@@ -158,7 +135,7 @@ class TopicModelFeature(Feature):
                 for k in missing:
                     topic_vec[k] = 0
             vecs.append(topic_vec)
-        tvecs = DataFrame(vecs, index=ds.index)
+        tvecs = DataFrame(vecs, index=data.index)
         return tvecs
 
 class LSI(TopicModelFeature):
@@ -172,6 +149,7 @@ class SentenceLSI(TopicModelFeature):
         super(SentenceLSI, self).__init__(*args, **kwargs)
 
     def make_docs(self, data):
+        # TODO: this doesnt exist anymore
         sents = []
         for txt in data:
             sents.extend(sent_tokenizer.tokenize(txt))
@@ -188,6 +166,7 @@ class LDA(TopicModelFeature):
 
 
 class TFIDF(Feature):
+    #TODO: prep-ify
     def __init__(self, feature, mindocs=50, maxterms=10000, maxdocs=1.):
         super(TFIDF, self).__init__(feature)
         # self.mindocs = mindocs
@@ -204,8 +183,8 @@ class TFIDF(Feature):
 
     def _create(self, data):
         docs = list(data)
-        dct = self.dictionary.get_dict(self.dataset, docs)
-        tfidf = self.dictionary.get_tfidf(self.dataset, docs)
+        dct = self.dictionary.get_dict(self.context, docs)
+        tfidf = self.dictionary.get_tfidf(self.context, docs)
         docs = [dct.doc2bow(d) for d in docs]
         vecs = tfidf[docs]
         df = DataFrame([dict(row) for row in vecs], index=data.index)
@@ -213,6 +192,7 @@ class TFIDF(Feature):
         df = df.fillna(0)
         print df
         return df
+
 
 class NgramCounts(Feature):
     def __init__(self, feature, mindocs=50, maxterms=10000, maxdocs=1.,
@@ -222,14 +202,18 @@ class NgramCounts(Feature):
         self.verbose = verbose
         self.dictionary = Dictionary(mindocs, maxterms, maxdocs)
 
-    def _create(self, data):
+    def _prepare(self, data):
         data = get_single_column(data)
         docs = list(data)
         if self.verbose:
             print docs[:10]
-        dct = self.dictionary.get_dict(self.dataset, docs)
+        dct = self.dictionary.get_dict(self.context, docs)
         if self.verbose:
             print dct
+        return dct
+
+    def _create(self, data):
+        dct = self.get_prep_data(data)
         docs = [dct.doc2bow(d) for d in docs]
         df = DataFrame([dict(row) for row in docs], index=data.index)
         df.columns = ['%s_%s' % (dct[i], data.name) for i in df.columns]
@@ -238,7 +222,7 @@ class NgramCounts(Feature):
 
 
 class SelectNgramCounts(NgramCounts):
-    # TODO: make this generic. pre-selector (so intermediate isn't cached)
+    # TODO: make this a generic pre-selector (so intermediate isn't cached)
     def __init__(self, feature, selector, target, n_keep=50, train_only=False, *args, **kwargs):
         super(SelectNgramCounts, self).__init__(feature, *args, **kwargs)
         self.selector = selector
@@ -249,21 +233,26 @@ class SelectNgramCounts(NgramCounts):
         self._cacheable = not train_only 
         self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
 
-    def is_trained(self):
+    def depends_on_y(self):
         return self.train_only
+
+    def _prepare(self, data):
+        dct = super(SelectNgramCounts, self)._prepare(data)
+        if self.train_only:
+            y = get_single_column(self.target.create(self.context)).reindex(self.context.train_index)
+            x = data.reindex(self.context.train_index)
+        else:
+            y = get_single_column(self.target.create(self.context))
+            x = data
+        cols = self.select(x, y)
+        return cols
 
     def select(self, x, y):
         return self.selector.sets(x, y, self.n_keep)
 
     def _create(self, data):
         data = super(SelectNgramCounts, self)._create(data)
-        if self.train_only:
-            y = self.dataset.get_train_y(self.target, self.train_index)
-            x = data.reindex(self.train_index)
-        else:
-            y = self.dataset.get_train_y(self.target, data.index)
-            x = data
-        cols = self.select(x, y)
+        cols = self.get_prep_data(data)
         return data[cols]
 
 

@@ -6,7 +6,6 @@ import hashlib
 import copy
 import numpy as np
 from sklearn import cross_validation, ensemble, linear_model
-from utils import get_hash
 
 class Selector(object):
     def __init__(self, verbose=False):
@@ -149,7 +148,7 @@ class BinaryFeatureSelector(Selector):
     """ Only for classification and binary(-able) features """
 
     def __init__(self, type='bns', *args, **kwargs):
-        """ type in ('bns', 'acc') 
+        """ type in ('ig', 'bns', 'acc')
         see: jmlr.csail.mit.edu/papers/volume3/forman03a/forman03a.pdf"""
         self.type = type
         super(BinaryFeatureSelector, self).__init__(*args, **kwargs)
@@ -161,10 +160,11 @@ class BinaryFeatureSelector(Selector):
             scores = self.round_robin(x, y, n_keep)
         else:
             scores = self.rank(x, y)
+            scores = [s[1] for s in scores]
         if self.verbose:
             # just show top few hundred
             print scores[:200]
-        return [s[1] for s in scores[:n_keep]]
+        return scores[:n_keep]
 
     def round_robin(self, x, y, n_keep):
         """ Ensures all classes get representative features, not just those with strong features """
@@ -173,26 +173,34 @@ class BinaryFeatureSelector(Selector):
         for cls in vals:
             scores[cls] = self.rank(x, np.equal(cls, y).astype('Int64'))
             scores[cls].reverse()
-        keepers = []
+        keepers = set()
         while len(keepers) < n_keep:
             for cls in vals:
-                keepers.append(scores[cls].pop())
-        return keepers
+                keepers.add(scores[cls].pop()[1])
+        return list(keepers)
 
     def rank(self, x, y):
         cnts = y.value_counts()
         scores = []
         for c in x.columns:
-            true_positives = np.count_nonzero(np.logical_and(x[c], y))
-            false_positives = np.count_nonzero(np.logical_and(x[c], np.logical_not(y)))
-            tpr = max(0.0005, true_positives / float(cnts[1]))
-            fpr = max(0.0005, false_positives / float(cnts[0]))
-            tpr = min(.9995, tpr)
-            fpr = min(.9995, fpr)
+            true_positives = float(np.count_nonzero(np.logical_and(x[c], y)))
+            false_positives = float(np.count_nonzero(np.logical_and(x[c], np.logical_not(y))))
+            pos = float(cnts[1])
+            neg = float(cnts[0])
+            n = pos + neg
             if self.type == 'bns':
+                tpr = max(0.0005, true_positives / pos)
+                fpr = max(0.0005, false_positives / neg)
+                tpr = min(.9995, tpr)
+                fpr = min(.9995, fpr)
                 score = abs(norm.ppf(tpr) - norm.ppf(fpr))
             elif self.type == 'acc':
                 score = abs(tpr - fpr)
+            elif self.type == 'ig':
+                def e(x, y):
+                    return -x / (x + y) * math.log(x / (x + y)) - y / (x + y) * math.log(y / (x + y))
+                score = e(pos, neg) - ( (true_positives + false_positives) / n * e(true_positives, false_positives)
+                    + (1 - (true_positives + false_positives) / n) * e(pos - true_positives, neg - false_positives))
             scores.append((score, c))
         scores.sort(reverse=True)
         return scores

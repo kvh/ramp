@@ -67,10 +67,10 @@ def make_folds(index, nfolds=5, repeat=1, shuffle=True):
         for i in range(nfolds):
             test = index[indices[i*foldsize:(i + 1)*foldsize]]
             train = index - test
-            assert(not (train & test))
+            assert not (train & test)
             yield train, test
 
-def get_hash(obj):
+def get_np_hash(obj):
     hshr = md5
     try:
         return hshr(np.getbuffer(obj)).hexdigest()
@@ -79,13 +79,17 @@ def get_hash(obj):
         # copy, and thus aleviates this issue.
         # XXX: There might be a more efficient way of doing this
         return hshr(np.getbuffer(obj.flatten())).hexdigest()
-    if hasattr(obj, '__iter__'):
-        try:
-            s = '-'.join([get_hash(x) for x in obj])
-            return hshr(s).hexdigest()
-        except TypeError:
-            pass
-    return hash(obj)
+
+def get_np_hashable(obj):
+    try:
+        return np.getbuffer(obj)
+    except TypeError:
+        return np.getbuffer(obj.flatten())
+
+
+def get_single_column(df):
+    assert len(df.columns) == 1
+    return df[df.columns[0]]
 
 stop_words = set([
     'http',

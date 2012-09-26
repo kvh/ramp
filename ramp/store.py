@@ -1,6 +1,7 @@
 import pandas
 import tables
 import cPickle
+# have to use pickle because of this bug: http://bugs.python.org/issue13555
 import pickle
 import shelve
 import hashlib
@@ -51,7 +52,8 @@ class Store(object):
                 return
         self.put(key, value)
         self._cache[key] = value
-        
+
+
 re_file = re.compile(r'\W+')
 class PickleStore(Store):
 

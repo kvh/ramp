@@ -10,7 +10,7 @@ class Reporter(object):
     def update_with_model(self, model):
         pass
 
-    def update_with_predictions(self, dataset, x, actuals, predictions):
+    def update_with_predictions(self, context, x, actuals, predictions):
         pass
 
 
@@ -20,7 +20,7 @@ class ModelOutliers(Reporter):
 
 class ConfusionMatrix(Reporter):
 
-    def update_with_predictions(self, dataset, x, actuals, predictions):
+    def update_with_predictions(self, context, x, actuals, predictions):
         cm = metrics.confusion_matrix(actuals, predictions)
         if hasattr(self.config.target, 'factors'):
             names = [f[0] for f in self.config.target.factors]
@@ -38,14 +38,14 @@ class MislabelInspector(Reporter):
     def update_with_model(self, model):
         pass
 
-    def update_with_predictions(self, dataset, x, actuals, predictions):
+    def update_with_predictions(self, context, x, actuals, predictions):
         for ind in actuals.index:
             a, p = actuals[ind], predictions[ind]
             if a != p:
                 print "-" * 20
                 print "Actual: %s\tPredicted: %s" % (a, p)
                 print x.ix[ind]
-                print dataset._data.ix[ind]
+                print context.data.ix[ind]
                 i = raw_input()
                 if i.startswith('c'):
                     break
