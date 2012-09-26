@@ -5,7 +5,6 @@ stats = importr('stats')
 base = importr('base')
 
 import numpy as np
-ordinal = importr('ordinal')
 
 def matrix_to_r_dataframe(x):
         rx = FloatVector(np.ravel(x))
@@ -14,14 +13,16 @@ def matrix_to_r_dataframe(x):
 
 
 class REstimator(object):
-    def __init__(self, r_estimator):
+    def __init__(self, r_estimator, **kwargs):
         self.estimator = r_estimator
+        self.kwargs = kwargs
 
-        def fit(self, x, y):
-            rx = matrix_to_r_dataframe(x)
-            ry = FloatVector(y)
-            robjects.globalenv["y"] = ry
-            self.estimator_fit = self.estimator("y ~ .",  data=rx)
+    def fit(self, x, y):
+        rx = matrix_to_r_dataframe(x)
+        ry = FloatVector(y)
+        robjects.globalenv["y"] = ry
+        self.estimator_fit = self.estimator("y ~ .",  data=rx,
+                **self.kwargs)
 
     def predict(self, x):
         rx = matrix_to_r_dataframe(x)
@@ -30,11 +31,12 @@ class REstimator(object):
 
 class OrderedLogit(object):
     def fit(self, x, y):
+        ordinal = importr('ordinal')
         rx = matrix_to_r_dataframe(x)
         self.levels = range(int(round(min(y))), int(round(max(y)))+1)
         ry = base.factor(FloatVector(y), levels=self.levels, ordered=True)
-        robjects.globalenv["score"] = ry
-        self.clmfit = ordinal.clm("score ~ .",  data=rx)
+        robjects.globalenv["y"] = ry
+        self.clmfit = ordinal.clm("y ~ .",  data=rx)
         #print base.summary(self.clmfit)
 
     def predict(self, x):
@@ -57,3 +59,10 @@ class WeightedLM(object):
         rx = matrix_to_r_dataframe(x)
         rvec = stats.predict(self.lmfit, rx)[0]
         return np.array(rvec)
+
+
+class GBM(REstimator):
+    def __init__(self, **kwargs):
+        gbm = importr('gbm')
+        super(GBM, self).__init__(gbm.gbm, **kwargs)
+

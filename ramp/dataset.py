@@ -1,8 +1,8 @@
 from core import get_dataset, _register_dataset
-from store import ShelfStore, DummyStore
+from store import ShelfStore, DummyStore, PickleStore, Store
 from configuration import *
 import core
-from features import BaseFeature, Feature, ConstantFeature
+from features.base import BaseFeature, Feature, ConstantFeature
 from pandas import concat, DataFrame, Series, Index
 import hashlib
 from sklearn import cross_validation
@@ -10,6 +10,7 @@ from sklearn import feature_selection
 import scipy
 import numpy as np
 import re
+import os
 import random
 import models
 import copy
@@ -19,8 +20,9 @@ __all__ = ['DataSet']
 
 
 class DataSet(object):
+
     def __init__(self, data, name, validation_index=None, default_config=None,
-            store=None):
+            data_dir=None, store=None):
         self.set_data(data)
         self.name = name
         self.default_config = default_config
@@ -29,15 +31,22 @@ class DataSet(object):
         self.validation_index = validation_index
         self.train_index = data.index - validation_index
         self._cache = {}
-        # TODO: add dummy store and custom store
-        if isinstance(store, basestring):
-            self.store = ShelfStore(store)
-        elif isinstance(store, ShelfStore):
+
+        self.data_dir = data_dir
+        ramp_data_dir = os.path.join(data_dir, 'ramp_data')
+        if not os.path.exists(ramp_data_dir):
+            os.makedirs(ramp_data_dir) 
+        dataset_dir = os.path.join(ramp_data_dir, name)
+        if not os.path.exists(dataset_dir):
+            os.makedirs(dataset_dir) 
+
+        if store is None:
+            self.store = PickleStore(dataset_dir)
+        elif isinstance(store, Store):
             self.store = store
         else:
             self.store = DummyStore()
-        # self.storable_hash = self._make_hash(
-        #         self.name)
+
         _register_dataset(self)
 
     def set_data(self, data):
@@ -59,22 +68,24 @@ class DataSet(object):
     def make_feature(self, feature, train_index=None, force=False):
         if train_index is None:
             train_index = self.train_index
-        # try:
-        #     if force: raise KeyError
-        #     d = self.load(feature.unique_name)
-        # except KeyError:
+
         d = feature.create(self, train_index, force)
+
         # sanity check index is valid
         assert(not d.index - self._data.index)
+
+        # columns probably shouldn't be constant...
         if not isinstance(feature, ConstantFeature):
             if any(d.std() < 1e-9):
                 print "\n\nWARNING: Feature '%s' has constant column. \n\n" % feature.unique_name
+
+        # we probably dont want NANs here...
         if np.isnan(d.values).any():
-            # TODO HACK: this is not right
+            # TODO HACK: this is not right.  (why isn't it right???)
             if not feature.unique_name.startswith(
                     Configuration.DEFAULT_PREDICTIONS_NAME):
                 print "\n\n***** WARNING: NAN in feature '%s' *****\n\n"%feature.unique_name
-        #self.save(feature.unique_name, d)
+
         return d
 
     def get_x(self, features, train_index):
@@ -131,7 +142,7 @@ class DataSet(object):
 
     def get_saved_configurations(self, **kwargs):
         try:
-            saved = self.load('saved_scores')
+            saved = self.store.load('saved_scores')
         except KeyError:
             saved = []
         if kwargs:
@@ -142,7 +153,10 @@ class DataSet(object):
         """configs: list of (cv_scores, config) """
         saved = self.get_saved_configurations()
         saved.extend(configs)
-        self.dump('saved_scores', saved) #saved[:self.keep_nmodels])
+        self.store.save('saved_scores', saved) #saved[:self.keep_nmodels])
+
+    def save_config(self, config, scores):
+        self.save_configurations((scores, copy.copy(config)))
 
     # def get_best_configuration(self, rank=0, weight_func=None, **kwargs):
     #     saved = self.get_saved_configurations()

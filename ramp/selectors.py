@@ -1,5 +1,6 @@
 from utils import make_folds, _pprint
 from pandas import Series, concat
+from scipy.stats import norm
 import random
 import hashlib
 import copy
@@ -8,6 +9,9 @@ from sklearn import cross_validation, ensemble, linear_model
 from utils import get_hash
 
 class Selector(object):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
     def __repr__(self):
         return '%s(%s)'%(self.__class__.__name__, _pprint(self.__dict__))
 
@@ -27,15 +31,15 @@ class Selector(object):
 class RandomForestSelector(Selector):
 
     def __init__(self, n=100, thresh=None, min_=True, classifier=False,
-            seed=2345, verbose=False):
+            seed=2345, *args, **kwargs):
         self.n = n
         self.min = min_
         self.thresh = thresh
         self.seed = seed
         self.classifier = classifier
-        self.verbose = verbose
+        super(RandomForestSelector, self).__init__(*args, **kwargs)
 
-    def sets(self, x, y):
+    def sets(self, x, y, n_keep):
         cls = ensemble.RandomForestRegressor
         if self.classifier:
             cls = ensemble.RandomForestClassifier
@@ -53,8 +57,9 @@ class RandomForestSelector(Selector):
                 print '%d\t%0.4f\t%s'%(i,imp, f)
         if self.thresh:
             imps = [t for t in imps if t[0] > self.thresh]
-        sets = [[t[1] for t in imps[:i+1]] for i in range(len(imps))]
-        return sets
+        return [t[1] for t in imps[:n_keep]]
+#        sets = [[t[1] for t in imps[:i+1]] for i in range(len(imps))]
+#        return sets
 
     def sets_cv(self, x, y):
         totals = [0]*len(x.columns)
@@ -122,16 +127,88 @@ class StepwiseForwardSelector(Selector):
 
 class LassoPathSelector(Selector):
 
-    def sets(self, x, y):
+    def sets(self, x, y, n_keep):
         alphas, active, coef_path = linear_model.lars_path(x.values, y.values)
         sets = []
         seen = set()
         print coef_path
         for coefs in coef_path.T:
             cols = [x.columns[i] for i in range(len(coefs)) if coefs[i] > 1e-9]
-            sets.append(cols)
-            for col in cols:
-                if col not in seen:
-                    print len(seen), col
-                    seen.add(col)
-        return sets
+            if len(cols) >= n_keep:
+                return cols
+        return cols
+#            sets.append(cols)
+#            for col in cols:
+#                if col not in seen:
+#                    print len(seen), col
+#                    seen.add(col)
+#        return sets
+
+
+class BinaryFeatureSelector(Selector):
+    """ Only for classification and binary(-able) features """
+
+    def __init__(self, type='bns', *args, **kwargs):
+        """ type in ('bns', 'acc') 
+        see: jmlr.csail.mit.edu/papers/volume3/forman03a/forman03a.pdf"""
+        self.type = type
+        super(BinaryFeatureSelector, self).__init__(*args, **kwargs)
+
+    def sets(self, x, y, n_keep):
+        cnts = y.value_counts()
+        print "Computing binary feature scores for %d features..." % len(x.columns)
+        if len(cnts) > 2:
+            scores = self.round_robin(x, y, n_keep)
+        else:
+            scores = self.rank(x, y)
+        if self.verbose:
+            # just show top few hundred
+            print scores[:200]
+        return [s[1] for s in scores[:n_keep]]
+
+    def round_robin(self, x, y, n_keep):
+        """ Ensures all classes get representative features, not just those with strong features """
+        vals = y.unique()
+        scores = {}
+        for cls in vals:
+            scores[cls] = self.rank(x, np.equal(cls, y).astype('Int64'))
+            scores[cls].reverse()
+        keepers = []
+        while len(keepers) < n_keep:
+            for cls in vals:
+                keepers.append(scores[cls].pop())
+        return keepers
+
+    def rank(self, x, y):
+        cnts = y.value_counts()
+        scores = []
+        for c in x.columns:
+            true_positives = np.count_nonzero(np.logical_and(x[c], y))
+            false_positives = np.count_nonzero(np.logical_and(x[c], np.logical_not(y)))
+            tpr = max(0.0005, true_positives / float(cnts[1]))
+            fpr = max(0.0005, false_positives / float(cnts[0]))
+            tpr = min(.9995, tpr)
+            fpr = min(.9995, fpr)
+            if self.type == 'bns':
+                score = abs(norm.ppf(tpr) - norm.ppf(fpr))
+            elif self.type == 'acc':
+                score = abs(tpr - fpr)
+            scores.append((score, c))
+        scores.sort(reverse=True)
+        return scores
+
+class InformationGainSelector(Selector):
+    """ Only for binary classification """
+
+    def sets(self, x, y, n_keep):
+        cnts = y.value_counts()
+        assert(len(cnts) == 2)
+        print "Computing IG scores..."
+        scores = []
+        for c in x.columns:
+            true_positives = sum(np.logical_and(x[c], y))
+            false_positives = sum(np.logical_and(x[c], np.logical_not(y)))
+            score = abs(norm.ppf(true_positives / float(cnts[1])) - norm.ppf(false_positives / float(cnts[0])))
+            scores.append((score, c))
+        scores.sort(reverse=True)
+        return [s[1] for s in scores[:n_keep]]

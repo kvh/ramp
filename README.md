@@ -34,8 +34,7 @@ be retrieved, compared, blended, and reused between runs.
 ### Easily extensible
 Ramp has a simple API, allowing you to plug in estimators from
 scikit-learn, rpy2 and elsewhere, or build your own feature
-transformations, metrics and feature selectors using python's vast
-libraries.
+transformations, metrics and feature selectors.
 
 
 ## Quick example

@@ -1,4 +1,3 @@
-#from ..core import Storable, store, get_key
 from pandas import Series, DataFrame, concat
 import numpy as np
 import random
@@ -10,7 +9,15 @@ re_object_repr = re.compile(r'<([.a-zA-Z0-9_ ]+?)\sat\s\w+>')
 from ..utils import _pprint, get_hash
 
 
+def get_single_column(df):
+    assert(len(df.columns) == 1)
+    return df[df.columns[0]]
+
+
 class BaseFeature(object):
+
+    _cacheable = True
+
     def __init__(self, feature):
         if not isinstance(feature, basestring):
             raise ValueError('Base feature must be a string')
@@ -48,7 +55,9 @@ class BaseFeature(object):
     def __pow__(self, power):
         return Power(self, power)
 
+
 class ConstantFeature(BaseFeature):
+
     def __init__(self, feature):
         if not isinstance(feature, int) and not isinstance(feature, float):
             raise ValueError('Constant feature must be a number')
@@ -60,15 +69,21 @@ class ConstantFeature(BaseFeature):
                 index=dataset._data.index,
                 columns=['%s'%self.feature])
 
+
 class DummyFeature(BaseFeature):
+
     def __init__(self):
         self.feature = ''
 
     def create(self, dataset, *args, **kwargs):
         return dataset._data
 
+
 class ComboFeature(BaseFeature):
+
     hash_length = 8
+    _cacheable = True
+
     def __init__(self, features):
         self.features = []
         if not isinstance(features, list) and not isinstance(features, tuple):
@@ -165,30 +180,49 @@ class ComboFeature(BaseFeature):
     #     self.train_index = index
     #     for feature in self.features:
     #         feature.set_train_index(index)
+    def create_data(self, train_index, force):
+        datas = []
+
+        # recurse
+        for feature in self.features:
+            data = feature.create(self.dataset, train_index, force)
+            # copy the dataframe to isolate side effects
+            # TODO: is this really necessary? Can we enforce immutability?
+            #data = DataFrame(data.copy())
+            datas.append(data)
+
+        # actually apply the feature
+        data = self._create(datas)
+        return data
 
     def create(self, dataset, train_index=None, force=False):
+        """ This is the prep for creating features. Has caching logic. """
         self.dataset = dataset
         if self.is_trained():
             self.train_index = train_index
         try:
             if force: raise KeyError
-            return self.dataset.store.load(self.unique_name)
-        except KeyError:
-            print "creating '%s' for dataset '%s'" % (self.unique_name,
+            d = self.dataset.store.load(self.unique_name)
+            print "loading '%s' for dataset '%s'" % (self.unique_name,
                 self.dataset.name)
+            return d
+        except KeyError:
+            print "creating '%s' for dataset '%s'..." % (self.unique_name,
+                self.dataset.name),
             pass
-        datas = []
-        for feature in self.features:
-            data = feature.create(dataset, train_index, force)
-            # TODO: is this really necessary? Can we enforce immutability?
-            data = DataFrame(data.copy())
-            datas.append(data)
-        data = self._create(datas)
-        self.dataset.store.save(self.unique_name, data)
+
+        data = self.create_data(train_index, force)
+
+        # cache it
+        if self._cacheable:
+            self.dataset.store.save(self.unique_name, data)
+
+        # delete state attrs. features are stateless!
         if self.is_trained():
             del self.train_index
         if hasattr(self, 'train_dataset'):
             del self.train_dataset
+        print "done"
         return data
 
     def _create(self, datas):
@@ -196,36 +230,25 @@ class ComboFeature(BaseFeature):
         data.columns = data.columns.map(self.column_rename)
         return data
 
+
 class Feature(ComboFeature):
+
     def __init__(self, feature):
         super(Feature, self).__init__([feature])
         self.feature = self.features[0]
 
-    def create(self, dataset, train_index=None, force=False):
-        self.dataset = dataset
-        if self.is_trained():
-            self.train_index = train_index
-        try:
-            if force: raise KeyError
-            return self.dataset.store.load(self.unique_name)
-        except KeyError:
-            print "creating '%s' for dataset '%s'" % (self.unique_name,
-                self.dataset.name)
-            pass
-        data = self.feature.create(dataset, train_index, force)
-        data = DataFrame(data.copy())
+    def create_data(self, train_index, force):
+        data = self.feature.create(self.dataset, train_index, force)
+        #data = DataFrame(data.copy())
         data = self._create(data)
         data.columns = data.columns.map(self.column_rename)
-        self.dataset.store.save(self.unique_name, data)
-        if self.is_trained():
-            del self.train_index
-            del self.train_dataset
         return data
 
     def _create(self, data):
         return data
 # handy shortcut
 F = Feature
+
 
 class MissingIndicator(Feature):
     def _create(self, data):
@@ -279,6 +302,7 @@ class Discretize(Feature):
 
 
 class Map(Feature):
+
     def __init__(self, feature, function, name=None):
         super(Map, self).__init__(feature)
         self.function = function
@@ -290,14 +314,23 @@ class Map(Feature):
     def _create(self, data):
         return data.applymap(self.function)
 
+
 class AsFactor(Feature):
+
     def _create(self, data):
-        assert(len(data.columns) == 1)
-        factors = set(data[data.columns[0]])
-        mapping = dict(zip(factors, range(len(factors))))
+        factors = set(get_single_column(data))
+        # TODO: is this state?
+        factors = zip(factors, range(len(factors)))
+        mapping = dict(factors)
+        self.inverse = dict([(v, k) for k, v in mapping.items()])
         return data.applymap(mapping.get)
 
+    def get_names(self, factor):
+        return self.inverse.get(factor)
+
+
 class AsFactorIndicators(Feature):
+
     def _create(self, data):
         assert(len(data.columns) == 1)
         col = data.columns[0]
@@ -306,6 +339,18 @@ class AsFactorIndicators(Feature):
             data['%s-%s'%(f, col)] = data[col].map(lambda x: int(x == f))
         del data[col]
         return data
+
+
+class IndicatorEquals(Feature):
+
+    def __init__(self, feature, value):
+        super(IndicatorEquals, self).__init__(feature)
+        self.value = value
+        self._name = self._name + '_%s'%value
+
+    def _create(self, data):
+        return data.applymap(lambda x: int(x==self.value))
+
 
 class Log(Map):
     def __init__(self, feature):
