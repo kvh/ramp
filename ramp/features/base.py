@@ -208,10 +208,6 @@ class ComboFeature(BaseFeature):
         return data
 
     def get_prep_key(self):
-        hsh = md5(get_np_hashable(self.context.prep_index))
-        if self.depends_on_y():
-            hsh.update(get_np_hashable(self.context.train_index))
-        return self.unique_name + '--prep--' + hsh.hexdigest()
         s = get_np_hashable(self.context.prep_index)
         tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
         return self.unique_name + '--prep--' + md5('%s--%s' % (s, tindex)).hexdigest()
@@ -230,12 +226,6 @@ class ComboFeature(BaseFeature):
         return prep_data
 
     def create_key(self):
-        hsh = md5(get_np_hashable(self.context.data.index))
-        if self.depends_on_y():
-            hsh.update(get_np_hashable(self.context.train_index))
-        if self.depends_on_other_x():
-            hsh.update(get_np_hashable(self.context.prep_index))
-        return self.unique_name + '--' + hsh.hexdigest()
         s = get_np_hashable(self.context.data.index)
         tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
         pindex = get_np_hashable(self.context.prep_index) if self.depends_on_other_x() else ''
@@ -268,7 +258,6 @@ class ComboFeature(BaseFeature):
         # delete state attrs. features are stateless!
         del self.context
 
-        print "done"
         return data
 
     def _create(self, datas):
@@ -333,12 +322,14 @@ class Normalize(Feature):
     def _create(self, data):
         eps = 1.0e-7
         col_stats = self.get_prep_data(data)
+        d = DataFrame(index=data.index)
         for col in data.columns:
             m, s = col_stats.get(col, (0, 0))
             if s < eps:
                 continue
-            data[col] = data[col].map(lambda x: (x - m)/s)
-        return data
+            d[col] = data[col].map(lambda x: (x - m)/s)
+        return d
+
 
 class Discretize(Feature):
     def __init__(self, feature, cutoffs, values=None):
@@ -376,6 +367,7 @@ class Map(Feature):
 class AsFactor(Feature):
 
     def __init__(self, feature, levels=None):
+        """ levels is list of tuples """
         super(AsFactor, self).__init__(feature)
         self.levels = levels
 
@@ -383,15 +375,15 @@ class AsFactor(Feature):
         levels = self.levels
         if not levels:
             levels = set(get_single_column(data))
-        factors = zip(levels, range(len(levels)))
-        return factors
+            levels = zip(levels, range(len(levels)))
+        return levels
 
     def _create(self, data):
-        factors = self.get_prep_data(data)
-        mapping = dict(factors)
+        levels = self.get_prep_data(data)
+        mapping = dict(levels)
         return data.applymap(mapping.get)
 
-    def get_names(self, factor):
+    def get_name(self, factor):
         factors = self.get_prep_data()
         inverse = dict([(v,k) for k,v in factors])
         return inverse.get(factor)
@@ -411,10 +403,10 @@ class AsFactorIndicators(Feature):
 
     def _create(self, data):
         factors = self.get_prep_data(data)
+        d = DataFrame(index=data.index)
         for f in list(factors)[:-1]:
-            data['%s-%s'%(f, col)] = data[col].map(lambda x: int(x == f))
-        del data[col]
-        return data
+            d['%s-%s'%(f, col)] = data[col].map(lambda x: int(x == f))
+        return d
 
 
 class IndicatorEquals(Feature):

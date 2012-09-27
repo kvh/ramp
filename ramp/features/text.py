@@ -214,9 +214,12 @@ class NgramCounts(Feature):
 
     def _create(self, data):
         dct = self.get_prep_data(data)
-        docs = [dct.doc2bow(d) for d in docs]
-        df = DataFrame([dict(row) for row in docs], index=data.index)
-        df.columns = ['%s_%s' % (dct[i], data.name) for i in df.columns]
+        data = get_single_column(data)
+        docs = [dct.doc2bow(d) for d in data]
+        ids = dct.keys()
+        df = DataFrame([dict(row) for row in docs],
+                columns=ids, index=data.index)
+        df.columns = ['%s_%s' % (dct[i], data.name) for i in ids]
         df = df.fillna(0)
         return df
 
@@ -245,12 +248,13 @@ class SelectNgramCounts(NgramCounts):
             y = get_single_column(self.target.create(self.context))
             x = data
         cols = self.select(x, y)
-        return cols
+        return cols, dct
 
     def select(self, x, y):
         return self.selector.sets(x, y, self.n_keep)
 
     def _create(self, data):
+        # TODO: not sure how to prep this...
         data = super(SelectNgramCounts, self)._create(data)
         cols = self.get_prep_data(data)
         return data[cols]

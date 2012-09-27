@@ -22,8 +22,10 @@ class ConfusionMatrix(Reporter):
 
     def update_with_predictions(self, context, x, actuals, predictions):
         cm = metrics.confusion_matrix(actuals, predictions)
-        if hasattr(self.config.target, 'factors'):
-            names = [f[0] for f in self.config.target.factors]
+        self.config.target.context = context
+        factors = self.config.target.get_prep_data()
+        if factors:
+            names = [f[0] for f in factors]
             df = DataFrame(cm, columns=names, index=names)
             print df.to_string()
         else:
