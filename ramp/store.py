@@ -1,8 +1,8 @@
 import pandas
 import tables
-import cPickle
-# have to use pickle because of this bug: http://bugs.python.org/issue13555
-import pickle
+import cPickle as pickle
+#for large objects have to use pickle because of this bug: http://bugs.python.org/issue13555
+#import pickle
 import shelve
 import hashlib
 import os
@@ -29,11 +29,12 @@ class DummyStore(object):
 
 
 class Store(object):
-    def __init__(self, path):
+    def __init__(self, path, verbose=False):
         self.path = path
         self._shelf = None
         self._uncachables = set()
         self._cache = {}
+        self.verbose = verbose
 
     def register_uncachable(self, un):
         """ any key containing the substring `un` will NOT be cached """
@@ -41,9 +42,15 @@ class Store(object):
 
     def load(self, key):
         try:
-            return self._cache[key]
+            v = self._cache[key]
+            if self.verbose:
+                print "Retrieving '%s' from local" % key
+            return v
         except KeyError:
-            return self.get(key)
+            v = self.get(key)
+            if self.verbose:
+                print "Retrieving '%s' from store" % key
+            return v
 
     def save(self, key, value):
         for un in self._uncachables:
@@ -54,12 +61,18 @@ class Store(object):
         self._cache[key] = value
 
 
+class MemoryStore(Store):
+
+    def put(self, key, value): pass
+    def get(self, key): raise KeyError
+
+
 re_file = re.compile(r'\W+')
 class PickleStore(Store):
 
     def get_fname(self, key):
         key_name = re_file.sub('_', key)
-        return os.path.join(self.path, hashlib.md5(key).hexdigest()[:10] + '--' + key_name)
+        return os.path.join(self.path, hashlib.md5(key).hexdigest()[:10] + '--' + key_name[:30])
 
     def put(self, key, value):
         dumppickle(value, self.get_fname(key), protocol=0)

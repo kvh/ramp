@@ -212,6 +212,9 @@ class ComboFeature(BaseFeature):
         if self.depends_on_y():
             hsh.update(get_np_hashable(self.context.train_index))
         return self.unique_name + '--prep--' + hsh.hexdigest()
+        s = get_np_hashable(self.context.prep_index)
+        tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
+        return self.unique_name + '--prep--' + md5('%s--%s' % (s, tindex)).hexdigest()
 
     def get_prep_data(self, data=None, force=False):
         try:
@@ -233,6 +236,10 @@ class ComboFeature(BaseFeature):
         if self.depends_on_other_x():
             hsh.update(get_np_hashable(self.context.prep_index))
         return self.unique_name + '--' + hsh.hexdigest()
+        s = get_np_hashable(self.context.data.index)
+        tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
+        pindex = get_np_hashable(self.context.prep_index) if self.depends_on_other_x() else ''
+        return self.unique_name + '--' + md5('%s--%s--%s' % (s, tindex, pindex)).hexdigest()
         
     def create(self, context, force=False):
         """ This is the prep for creating features. Has caching logic. """

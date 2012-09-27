@@ -14,23 +14,34 @@ since you usually want to run different models/features/training subsets. also,
 hard to implement (so many variables/data to key on, are they all really immutable?)
 """
 
-
-def fit(config, context):
+def get_xy(config, context):
     x = build_featureset(config.features, context)
     y = build_target(config.target, context)
 
     if config.column_subset:
         x = x[config.column_subset]
+    return x, y
 
-    train_x = x.reindex(context.train_index)
-    train_y = y.reindex(context.train_index)
 
-    if debug:
-        print train_x
-    if debug:
-        print "Fitting model '%s'." % (config.model.__name__)
+def fit(config, context):
+    x, y = None, None
+    try:
+        # model caching
+        config.model = context.store.load('%r-%s' % (config, context.create_key()))
+        print "loading stored model..."
+    except KeyError:
+        x, y = get_xy(config, context)
 
-    config.model.fit(train_x.values, train_y.values)
+        train_x = x.reindex(context.train_index)
+        train_y = y.reindex(context.train_index)
+
+        if debug:
+            print train_x
+        if debug:
+            print "Fitting model '%s'." % (config.model.__name__)
+
+        config.model.fit(train_x.values, train_y.values)
+        context.store.save('%r-%s' % (config, context.create_key()), config.model)
 
     config.update_reporters_with_model(config.model)
 
@@ -42,6 +53,11 @@ def predict(config, context, predict_index):
         print "WARNING: train and predict indices overlap..."
 
     x, y = fit(config, context)
+    if x is None:
+        # rebuild just the necessary x:
+        ctx = context.copy()
+        ctx.data = context.data.ix[predict_index]
+        x, y = get_xy(config, ctx)
 
     # ensure correct columns exist:
 #    for col in columns_used:
