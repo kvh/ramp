@@ -182,6 +182,8 @@ class BinaryFeatureSelector(Selector):
     def rank(self, x, y):
         cnts = y.value_counts()
         scores = []
+        def e(x, y):
+            return -x / (x + y) * math.log(x / (x + y)) - y / (x + y) * math.log(y / (x + y))
         for c in x.columns:
             true_positives = float(np.count_nonzero(np.logical_and(x[c], y)))
             false_positives = float(np.count_nonzero(np.logical_and(x[c], np.logical_not(y))))
@@ -197,8 +199,6 @@ class BinaryFeatureSelector(Selector):
             elif self.type == 'acc':
                 score = abs(tpr - fpr)
             elif self.type == 'ig':
-                def e(x, y):
-                    return -x / (x + y) * math.log(x / (x + y)) - y / (x + y) * math.log(y / (x + y))
                 score = e(pos, neg) - ( (true_positives + false_positives) / n * e(true_positives, false_positives)
                     + (1 - (true_positives + false_positives) / n) * e(pos - true_positives, neg - false_positives))
             scores.append((score, c))
