@@ -18,14 +18,15 @@ Things to note:
     base cache keys on the pandas index and column name, but not the actual
     data, so for a given column name and index, a Feature will NOT recompute
     anything, even if you have changed the value inside. (This applies only in the context of a
-    single storage path. Separate stores will not ever collide of course.)
+    single storage path. Separate stores will not collide of course.)
     2. Features are called "trained" when they depend on "y" values. For these 
     features you should specify a train_index so that you do not pollute 
     cross-validation with test "y" values.
     3. Features are "prepped" in the context of certain rows ("x" values). For
     instance, you normalize a column (mean zero, stdev 1) using certain rows. 
     These prepped values are stored as well so they can be used in "un-prepped"
-    contexts (such as predicting a hold out set)
+    contexts (such as predicting a hold out set). You specify a prep_index
+    to indicate which rows are to be used in preparation.
     4. Features are *stateless*, except temporarily while being created they
     have an attached DataContext object. This is hard to enforce in 
     python unfortunately...
@@ -218,7 +219,7 @@ class ComboFeature(BaseFeature):
             d = self.context.store.load(self.get_prep_key())
             return d
         except KeyError:
-            if not data:
+            if data is None:
                 raise KeyError()
             print "Prepping '%s'" % self.unique_name
         prep_data = self._prepare(data.reindex(self.context.prep_index))

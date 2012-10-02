@@ -37,14 +37,40 @@ class AUC(SKLearnMetric):
     reverse = True
     metric = staticmethod(metrics.auc)
 
+
 class F1(SKLearnMetric):
     reverse = True
     metric = staticmethod(metrics.f1_score)
 
+
 class HingeLoss(SKLearnMetric):
     metric = staticmethod(metrics.hinge_loss)
+
 
 class LogLoss(Metric):
     def score(self, actual, predicted):
         return - sum(actual * np.log(predicted) + (1 - actual) * np.log(1 -
             predicted))/len(actual)
+
+
+class GeneralizedMCC(Metric):
+    """ Matthew's Correlation Coefficient generalized to multi-class case """
+    def cov(self, c, n, flip=False):
+        s = 0
+        for k in range(n):
+            if flip:
+                s1 = sum([c[l,k] for l in range(n)])
+                s2 = sum([c[g,f] for g in range(n) for f in range(n) if f != k])
+            else:
+                s1 = sum([c[k,l] for l in range(n)])
+                s2 = sum([c[f,g] for g in range(n) for f in range(n) if f != k])
+            s += s1 * s2
+        return s
+
+    def score(self, actual, predicted):
+        c = metrics.confusion_matrix(actual, predicted)
+        n = c.shape[0]
+        numer = sum([c[k,k] * c[m,l] - c[l,k] * c[k,m] for k in range(n) for l in range(n) for m in range(n)])
+        denom = math.sqrt(self.cov(c, n)) * math.sqrt(self.cov(c, n, flip=True))
+        return numer/denom
+

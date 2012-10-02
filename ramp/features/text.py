@@ -95,7 +95,7 @@ class TopicModelFeature(Feature):
         self._name = '%s_%d' %(self._name, num_topics)
 
     def _prepare(self, data):
-        docs = list(get_single_column(data).values)
+        docs = list(data.values)
         dct, tfidf, lsi = self.make_engine(docs)
         return dct, tfidf, lsi
 
