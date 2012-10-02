@@ -281,6 +281,23 @@ class Ngrams(Feature):
         return data.applymap(lambda x: ngrams(x, self.ngrams))
 
 
+def chargrams(s, n):
+    st = '^'
+    end = '$'
+    # pad with start and end symbols
+    s = st * (n - 1) + s + end * (n - 1)
+    return [s[i:i+n] for i in range(len(s) - n + 1)]
+
+class CharGrams(Feature):
+    def __init__(self, feature, chars=4):
+        self.chars = chars
+        super(CharGrams, self).__init__(feature)
+        self._name += '_%d' % chars
+
+    def _create(self, data):
+        return data.applymap(lambda x: set(chargrams(x, self.chars)))
+
+
 class Tokenizer(Feature):
     def __init__(self, feature, tokenizer=tokenize_keep_all):
         super(Tokenizer, self).__init__(feature)
