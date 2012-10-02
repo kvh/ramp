@@ -254,7 +254,8 @@ class SelectNgramCounts(NgramCounts):
         return self.selector.sets(x, y, self.n_keep)
 
     def _create(self, data):
-        # TODO: not sure how to prep this...
+        # TODO: not sure how to prep this... need to recreate 
+        # inherited feature to get at its prepped data
         data = super(SelectNgramCounts, self)._create(data)
         cols = self.get_prep_data(data)
         return data[cols]

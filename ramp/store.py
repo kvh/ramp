@@ -2,7 +2,7 @@ import pandas
 import tables
 import cPickle as pickle
 #for large objects have to use pickle because of this bug: http://bugs.python.org/issue13555
-#import pickle
+import pickle
 import shelve
 import hashlib
 import os
@@ -82,6 +82,25 @@ class PickleStore(Store):
             return loadpickle(self.get_fname(key))
         except IOError:
             raise KeyError
+
+
+class HDFPickleStore(PickleStore):
+
+    def get_store(self):
+        return pandas.HDFStore(os.path.join(self.path, 'ramp.h5'))
+
+    def put(self, key, value):
+        if isinstance(value, pandas.DataFrame) or isinstance(value, pandas.Series):
+            self.get_store()[self.get_fname(key)] = value
+        else:
+            super(HDFPickleStore, self).put(key, value)
+
+    def get(self, key):
+        try:
+            return self.get_store()[self.get_fname(key)]
+        except KeyError:
+            pass
+        return super(HDFPickleStore, self).get(key)
 
 
 class ShelfStore(Store):
