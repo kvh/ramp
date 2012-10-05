@@ -7,8 +7,8 @@ class Metric(object):
     Implements evaluate method that takes two
     Series (or DataFrames) and outputs a metric
     """
-    # smaller is better by default, set reverse to True for bigger is better
-    # metrics
+    # lower values are better by default, set reverse to true for
+    # "bigger is better" metrics
     reverse = False
     @property
     def name(self):

@@ -1,5 +1,5 @@
 from features.base import BaseFeature, Feature
-from utils import _pprint
+from utils import _pprint, stable_repr
 import copy
 
 
@@ -36,9 +36,7 @@ class Configuration(object):
             r.set_config(self)
 
     def __repr__(self):
-        return '%s(%s)' % (
-                self.__class__.__name__,
-                _pprint(self.__dict__))
+        return stable_repr(self)
 
     def __str__(self):
         return '%s\n\tmodel: %s\n\t%d features\n\ttarget: %s' % (

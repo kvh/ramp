@@ -5,48 +5,6 @@ from ..utils import make_folds
 from pandas import Series, DataFrame, concat
 from ..dataset import get_single_column
 
-# class ModelPredictions(Feature):
-#     def __init__(self, config, name=None, cv_folds=5):
-#         # TODO: Hackkkkk
-#         super(ModelPredictions, self).__init__(config.features[0])
-#         self.cv_folds = cv_folds
-#         self.config = config
-#         if name:
-#             self._name = name
-#         else:
-#             self._name = '%s-%s' %(str(config.model)[:30], repr(self)[:8])
-
-#     def _create(self, data):
-#         return models.predict(self.dataset, self.config,
-#                 self.dataset.data.index, self.train_index)
-
-# class ModelResiduals(ModelPredictions):
-#     def __init__(self, *args, **kwargs):
-#         super(ModelResiduals, self).__init__(*args, **kwargs)
-
-#     def _create(self, data):
-#         preds = self.model.predict(self.dataset, self.features,
-#             self.dataset.data.index,
-#             self.dataset.train_index,
-#             column_subset=self.column_subset,
-#             target=self.target)
-#         return self.dataset.get_train_y(target=self.target) - preds
-
-class TrainedFeature(Feature):
-    pass
-    # def _create(self, data):
-    #     if self.train_index is None:
-    #         raise ValueError("A training index must be specified to create a "
-    #         "TrainedFeature")
-    #     return self.train(data)
-
-    # def train(self, data):
-    #     trainx = data.reindex(self.train_index)
-    #     #testx = data.drop(self.train_index)
-    #     y = self.dataset.get_train_y()
-    #     trainy = y.reindex(self.train_index)
-    #     self.fit(trainx, trainy)
-    #     return self.predict(data)
 
 class Predictions(Feature):
 

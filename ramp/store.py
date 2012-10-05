@@ -1,8 +1,9 @@
 import pandas
 import tables
+from tables.exceptions import NoSuchNodeError
 import cPickle as pickle
-#for large objects have to use pickle because of this bug: http://bugs.python.org/issue13555
-import pickle
+#for large objects have to use pickle due to this bug: http://bugs.python.org/issue13555
+#import pickle
 import shelve
 import hashlib
 import os
@@ -70,9 +71,12 @@ class MemoryStore(Store):
 re_file = re.compile(r'\W+')
 class PickleStore(Store):
 
-    def get_fname(self, key):
+    def safe_name(self, key):
         key_name = re_file.sub('_', key)
-        return os.path.join(self.path, hashlib.md5(key).hexdigest()[:10] + '--' + key_name[:30])
+        return '_%s__%s' % (hashlib.md5(key).hexdigest()[:10], key_name[:30])
+
+    def get_fname(self, key):
+        return os.path.join(self.path, self.safe_name(key))
 
     def put(self, key, value):
         dumppickle(value, self.get_fname(key), protocol=0)
@@ -91,14 +95,14 @@ class HDFPickleStore(PickleStore):
 
     def put(self, key, value):
         if isinstance(value, pandas.DataFrame) or isinstance(value, pandas.Series):
-            self.get_store()[self.get_fname(key)] = value
+            self.get_store()[self.safe_name(key)] = value
         else:
             super(HDFPickleStore, self).put(key, value)
 
     def get(self, key):
         try:
-            return self.get_store()[self.get_fname(key)]
-        except KeyError:
+            return self.get_store()[self.safe_name(key)]
+        except (KeyError, NoSuchNodeError):
             pass
         return super(HDFPickleStore, self).get(key)
 

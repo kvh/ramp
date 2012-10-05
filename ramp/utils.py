@@ -91,6 +91,17 @@ def get_single_column(df):
     assert len(df.columns) == 1
     return df[df.columns[0]]
 
+
+re_object_repr = re.compile(r'<([.a-zA-Z0-9_ ]+?)\sat\s\w+>')
+
+def stable_repr(obj):
+    state = _pprint(obj.__getstate__())
+    # HACK: replace 'repr's that contain object id references
+    state = re_object_repr.sub(r'<\1>', state)
+    return '%s(%s)' % (
+            obj.__class__.__name__,
+            state)
+
 stop_words = set([
     'http',
     'https',

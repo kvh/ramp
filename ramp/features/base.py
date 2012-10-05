@@ -5,8 +5,7 @@ import inspect
 import math
 import re
 from hashlib import md5
-re_object_repr = re.compile(r'<([.a-zA-Z0-9_ ]+?)\sat\s\w+>')
-from ..utils import _pprint, get_np_hashable, get_single_column
+from ..utils import _pprint, get_np_hashable, get_single_column, stable_repr
 
 
 """ 
@@ -31,7 +30,6 @@ Things to note:
     have an attached DataContext object. This is hard to enforce in 
     python unfortunately...
 """
-
 
 
 class BaseFeature(object):
@@ -121,20 +119,15 @@ class ComboFeature(BaseFeature):
         self._name = cname
 
     def __getstate__(self):
-        # shallow copy dict so we don't modify references
+        # shallow copy dict and keep references
         dct = self.__dict__.copy()
-        # HACK remove ephemeral items
+        # HACK remove temporary state
         if 'context' in dct:
             del dct['context']
         return dct
 
     def __repr__(self):
-        state = _pprint(self.__getstate__())
-        # HACK: replace 'repr's that contain object id references
-        state = re_object_repr.sub(r'<\1>', state)
-        return '%s(%s)' % (
-                self.__class__.__name__,
-                state)
+        return stable_repr(self)
 
     def _hash(self):
         s = repr(self)
@@ -195,7 +188,6 @@ class ComboFeature(BaseFeature):
 
     def create_data(self, force):
         datas = []
-
         # recurse
         for feature in self.features:
             data = feature.create(self.context, force)
@@ -203,7 +195,6 @@ class ComboFeature(BaseFeature):
             # TODO: is this really necessary? Can we enforce immutability?
             #data = DataFrame(data.copy())
             datas.append(data)
-
         # actually apply the feature
         data = self._create(datas)
         return data
@@ -350,7 +341,6 @@ class Discretize(Feature):
         return data.applymap(self.discretize)
 
 
-
 class Map(Feature):
 
     def __init__(self, feature, function, name=None):
@@ -458,6 +448,7 @@ class GroupMap(Feature):
         except ValueError:
             return data.apply(self.function)
 
+
 class Powers(Feature):
     def __init__(self, feature, order=2):
         self.order = order
@@ -511,14 +502,15 @@ class ReplaceOutliers(Feature):
                     )
         return concat(cols, keys=data.columns, axis=1)
 
+
 class ColumnSubset(Feature):
-    def __init__(self, feature, subset, search=True):
+    def __init__(self, feature, subset, match_substr=False):
         super(ColumnSubset, self).__init__(feature)
         self.subset = subset
-        self.search = search
+        self.match_substr = match_substr
 
     def _create(self, data):
-        if self.search:
+        if self.match_substr:
             cols = [c for c in data.columns if any([s in c for s in self.subset])]
         else:
             cols = self.subset
