@@ -30,7 +30,7 @@ class DummyStore(object):
 
 
 class Store(object):
-    def __init__(self, path, verbose=False):
+    def __init__(self, path=None, verbose=False):
         self.path = path
         self._shelf = None
         self._uncachables = set()
@@ -60,6 +60,12 @@ class Store(object):
                 return
         self.put(key, value)
         self._cache[key] = value
+
+    def get(self, key):
+        raise NotImplementedError
+
+    def put(self, key, value):
+        raise NotImplementedError
 
 
 class MemoryStore(Store):

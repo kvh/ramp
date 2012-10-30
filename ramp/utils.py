@@ -53,15 +53,10 @@ def make_folds(index, nfolds=5, repeat=1, shuffle=True):
             assert not (train & test)
             yield train, test
 
+
 def get_np_hash(obj):
-    hshr = md5
-    try:
-        return hshr(np.getbuffer(obj)).hexdigest()
-    except TypeError:
-        # Cater for non-single-segment arrays: this creates a
-        # copy, and thus aleviates this issue.
-        # XXX: There might be a more efficient way of doing this
-        return hshr(np.getbuffer(obj.flatten())).hexdigest()
+    return md5(get_np_hashable(obj)).hexdigest()
+
 
 def get_np_hashable(obj):
     try:

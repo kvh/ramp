@@ -1,35 +1,46 @@
 import sys
 sys.path.append('../..')
-from ramp.features import *
-from ramp.dataset import *
-from ramp.models import *
-from ramp.metrics import *
-from ramp.store import DummyStore, ShelfStore
+from ramp.store import *
 import unittest
-import pandas
+from pandas import *
 import tempfile
-import shelve
 
 
-class TestShelfStore(unittest.TestCase):
+class TestStore(unittest.TestCase):
 
     def test_dummy(self):
         store = DummyStore()
-        store.save('test', 1)
-        self.assertRaises(KeyError, store.load, ('test'))
+        key = 'test'
+        store.save(key, 1)
+        self.assertRaises(KeyError, store.load, (key))
 
-    def test_store(self):
-        p = tempfile.mkdtemp()
-        store = ShelfStore(p + 'test.shelf')
-        k = 'test'
-        v = 123
-        store.save(k, v)
-        self.assertEqual(store.load(k), v)
-        store._shelf.close()
-        # re-open manually
-        shelf = shelve.open(p + 'test.shelf')
-        self.assertEqual(len(shelf.keys()), 1)
-        self.assertEqual(shelf[k], v)
+    def test_stores(self):
+        stores = []
+        f = tempfile.mkdtemp()
+        stores = [HDFPickleStore(f), PickleStore(f), MemoryStore()]
+
+        for store in stores:
+            print "Testing store:", store.__class__.__name__
+
+            # keys can be arbitrary strings
+            key = 'hi there-342 {{ ok }}'
+            store.save(key, 1)
+            self.assertEqual(store.load(key), 1)
+
+            # test local cache
+            self.assertTrue(key in store._cache)
+
+            # test python object and overwrite
+            store.save(key, dict(hi=1, bye=2))
+            self.assertEqual(store.load(key), dict(hi=1, bye=2))
+
+            # test pandas object
+            store.save(key, DataFrame([range(10), range(10)]))
+            self.assertEqual(store.load(key), DataFrame([range(10), range(10)]))
+
+            # test miss
+            self.assertRaises(KeyError, store.load, ('not'))
 
 
-
+if __name__ == '__main__':
+    unittest.main()
