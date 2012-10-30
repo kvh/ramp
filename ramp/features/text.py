@@ -1,5 +1,4 @@
 from base import Feature, ComboFeature, get_single_column
-from trained import TrainedFeature
 from ..selectors import LassoPathSelector
 try:
     import gensim
@@ -196,11 +195,12 @@ class TFIDF(Feature):
 
 class NgramCounts(Feature):
     def __init__(self, feature, mindocs=50, maxterms=10000, maxdocs=1.,
-            verbose=False):
+            bool=False, verbose=False):
         super(NgramCounts, self).__init__(feature)
         self._name = self._name + '_%d,%d,%f'%(mindocs, maxterms, maxdocs)
         self.verbose = verbose
         self.dictionary = Dictionary(mindocs, maxterms, maxdocs)
+        self.bool = bool
 
     def _prepare(self, data):
         data = get_single_column(data)
@@ -221,6 +221,8 @@ class NgramCounts(Feature):
                 columns=ids, index=data.index)
         df.columns = ['%s_%s' % (dct[i], data.name) for i in ids]
         df = df.fillna(0)
+        if self.bool:
+            df = df.astype(bool).astype(int)
         return df
 
 

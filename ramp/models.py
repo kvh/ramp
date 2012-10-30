@@ -48,11 +48,12 @@ def fit(config, context):
     return x, y
 
 
-def predict(config, context, predict_index):
+def predict(config, context, predict_index, force_prediction=False):
     if (context.train_index & predict_index):
         print "WARNING: train and predict indices overlap..."
 
     x, y = fit(config, context)
+    # TODO: possible to have x loaded without new prediction rows
     if x is None:
         # rebuild just the necessary x:
         ctx = context.copy()
@@ -72,8 +73,12 @@ def predict(config, context, predict_index):
 #    x = x.reindex(columns=columns_used)
 
     predict_x = x.reindex(predict_index)
+
+    # make actual predictions
     ps = config.model.predict(predict_x.values)
     preds = Series(ps, index=predict_x.index)
+
+    # prediction post-processing
     if config.prediction is not None:
         context.data[config.predictions_name] = preds
         preds = build_target(config.prediction, context)

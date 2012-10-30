@@ -102,6 +102,7 @@ class ComboFeature(BaseFeature):
 
     hash_length = 8
     _cacheable = True
+    re_hsh = re.compile(r' \[\w{%d}\]' % hash_length)
 
     def __init__(self, features):
         self.features = []
@@ -117,6 +118,7 @@ class ComboFeature(BaseFeature):
         if cname.endswith('Feature'):
             cname = cname[:-7]
         self._name = cname
+        self._hash_cache = None
 
     def __getstate__(self):
         # shallow copy dict and keep references
@@ -130,8 +132,12 @@ class ComboFeature(BaseFeature):
         return stable_repr(self)
 
     def _hash(self):
+        if self._hash_cache is not None:
+            return self._hash_cache
         s = repr(self)
-        return md5(s).hexdigest()[:self.hash_length]
+        self._hash_cache = md5(s).hexdigest()[:self.hash_length]
+        return self._hash_cache
+
 
     @property
     def unique_name(self):
@@ -160,7 +166,7 @@ class ComboFeature(BaseFeature):
         return f
 
     def _remove_hashes(self, s):
-        return re.sub(r' \[\w{%d}\]'%self.hash_length, '', s)
+        return self.re_hsh.sub('', s)
 
     def column_rename(self, existing_name):
         """
@@ -328,7 +334,7 @@ class Discretize(Feature):
         super(Discretize, self).__init__(feature)
         self.cutoffs = cutoffs
         if values is None:
-            values = range(cutoffs + 1)
+            values = range(len(cutoffs) + 1)
         self.values = values
 
     def discretize(self, x):

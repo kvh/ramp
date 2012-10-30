@@ -3,6 +3,7 @@ import urlparse
 import re
 from BeautifulSoup import BeautifulStoneSoup
 import numpy as np
+import random
 from hashlib import md5
 
 def _pprint(params, offset=0, printer=repr):
@@ -22,41 +23,23 @@ def _pprint(params, offset=0, printer=repr):
         the builtin str or repr
 
     """
-    # Do a multi-line justified repr:
-    options = np.get_printoptions()
-    np.set_printoptions(precision=5, threshold=64, edgeitems=2)
     params_list = list()
-    this_line_length = offset
-    #line_sep = ',\n' + (1 + offset // 2) * ' '
     line_sep = ','
     for i, (k, v) in enumerate(sorted(params.iteritems())):
         if type(v) is float:
             # use str for representing floating point numbers
             # this way we get consistent representation across
             # architectures and versions.
-            this_repr = '%s=%s' % (k, str(v))
+            this_repr = '%s=%.10f' % (k, v)
         else:
             # use repr of the rest
             this_repr = '%s=%s' % (k, printer(v))
-        # if len(this_repr) > 500:
-        #     this_repr = this_repr[:300] + '...' + this_repr[-100:]
-        if i > 0:
-            if (this_line_length + len(this_repr) >= 75
-                                        or '\n' in this_repr):
-                params_list.append(line_sep)
-                this_line_length = len(line_sep)
-            else:
-                params_list.append(',')
-                this_line_length += 2
         params_list.append(this_repr)
-        this_line_length += len(this_repr)
 
-    np.set_printoptions(**options)
-    lines = ''.join(params_list)
-    # Strip trailing space to avoid nightmare in doctests
-    lines = '\n'.join(l.rstrip(' ') for l in lines.split('\n'))
+    lines = ','.join(params_list)
     return lines
-import random
+
+
 def make_folds(index, nfolds=5, repeat=1, shuffle=True):
     n = len(index)
     indices = range(n)
@@ -92,12 +75,12 @@ def get_single_column(df):
     return df[df.columns[0]]
 
 
-re_object_repr = re.compile(r'<([.a-zA-Z0-9_ ]+?)\sat\s\w+>')
+re_object_repr = re.compile(r'\sat\s\w+>')
 
 def stable_repr(obj):
     state = _pprint(obj.__getstate__())
     # HACK: replace 'repr's that contain object id references
-    state = re_object_repr.sub(r'<\1>', state)
+    state = re_object_repr.sub('>', state)
     return '%s(%s)' % (
             obj.__class__.__name__,
             state)

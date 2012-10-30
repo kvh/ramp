@@ -35,6 +35,11 @@ class Configuration(object):
         for r in self.reporters:
             r.set_config(self)
 
+    def __getstate__(self):
+        # shallow copy dict and keep references
+        dct = self.__dict__.copy()
+        return dct
+
     def __repr__(self):
         return stable_repr(self)
 
