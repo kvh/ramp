@@ -23,11 +23,15 @@ def get_xy(config, context):
     return x, y
 
 
+def get_key(config, context):
+    return '%r-%s' % (config, context.create_key())
+
+
 def fit(config, context):
     x, y = None, None
     try:
         # model caching
-        config.model = context.store.load('%r-%s' % (config, context.create_key()))
+        config.model = context.store.load(get_key(config, context))
         print "loading stored model..."
     except KeyError:
         x, y = get_xy(config, context)
@@ -41,18 +45,20 @@ def fit(config, context):
             print "Fitting model '%s'." % (config.model.__name__)
 
         config.model.fit(train_x.values, train_y.values)
-        context.store.save('%r-%s' % (config, context.create_key()), config.model)
+        context.store.save(get_key(config, context), config.model)
 
     config.update_reporters_with_model(config.model)
 
     return x, y
 
 
-def predict(config, context, predict_index, force_prediction=False):
+def predict(config, context, predict_index, fit_model=True):
     if (context.train_index & predict_index):
         print "WARNING: train and predict indices overlap..."
 
-    x, y = fit(config, context)
+    if fit_model:
+        x, y = fit(config, context)
+
     # TODO: possible to have x loaded without new prediction rows
     if x is None:
         # rebuild just the necessary x:
@@ -111,4 +117,15 @@ def print_scores(scores):
           max(scores))
 
 
+def build_model(config, context, name=None):
+    models.fit(config, context)
+    context.store.save('model__%s' % name, get_key(config, context))
+
+
+def get_or_build_model(config, context, name):
+    try:
+        key = context.store.load('model__%s' % name)
+        config.model = context.store.load(key)
+    except KeyError:
+        build_model(config, context, name)
 
