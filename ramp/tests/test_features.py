@@ -1,9 +1,10 @@
 import sys
 sys.path.append('../..')
+from ramp import context, store
+from ramp.features import base
 from ramp.features.base import *
-from ramp import store
-from ramp.context import *
 import unittest
+from pandas import DataFrame, Series, Index
 import pandas
 import tempfile
 
@@ -12,7 +13,6 @@ import numpy as np
 import os, sys
 
 from pandas.util.testing import assert_almost_equal
-from test_models import lm
 
 
 def strip_hash(s):
@@ -30,6 +30,8 @@ def make_data(n):
 
 
 class TestBasicFeature(unittest.TestCase):
+    def setUp(self):
+        self.data = make_data(10)
 
     def test_basefeature(self):
         f = BaseFeature('col1')
@@ -70,21 +72,29 @@ class TestBasicFeature(unittest.TestCase):
         self.assertEqual(repr(f), "Feature(_name='',"
         "feature='col1',features=['col1'])")
 
+    def test_create_cache(self):
+        f = base.Normalize(base.F(10) + base.F('a'))
+        ctx = context.DataContext(store.MemoryStore('test', verbose=True), self.data)
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r.mean(), 0)
+        self.assertAlmostEqual(r.std(), 1)
 
+        # now add some new data
+        idx = len(self.data) + 1000
+        ctx.data = ctx.data.append(DataFrame([100, 200], columns=['a'], index=Index([idx, idx+1])))
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
 
-class TestFeatureCreate(unittest.TestCase):
-
-    def setUp(self):
-        n = 100
-        self.n = n
-        self.data = make_data(n)
-        self.context = DataContext(store.MemoryStore(), self.data)
-
-
+        # drop all the other data ... should still use old prep data
+        ctx.data = ctx.data.ix[[idx, idx+1]]
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
 
 
 
 if __name__ == '__main__':
     unittest.main()
-
 

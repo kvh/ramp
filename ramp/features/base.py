@@ -118,7 +118,6 @@ class ComboFeature(BaseFeature):
         if cname.endswith('Feature'):
             cname = cname[:-7]
         self._name = cname
-        self._hash_cache = None
 
     def __getstate__(self):
         # shallow copy dict and keep references
@@ -132,12 +131,8 @@ class ComboFeature(BaseFeature):
         return stable_repr(self)
 
     def _hash(self):
-        if self._hash_cache is not None:
-            return self._hash_cache
         s = repr(self)
-        self._hash_cache = md5(s).hexdigest()[:self.hash_length]
-        return self._hash_cache
-
+        return md5(s).hexdigest()[:self.hash_length]
 
     @property
     def unique_name(self):
@@ -162,7 +157,7 @@ class ComboFeature(BaseFeature):
     def _remove_hashes(self, s):
         return self.re_hsh.sub('', s)
 
-    def column_rename(self, existing_name):
+    def column_rename(self, existing_name, hsh=None):
         """
         like unique_name, but in addition must be unique to each column of this
         feature. accomplishes this by prepending readable string to existing
@@ -172,11 +167,13 @@ class ComboFeature(BaseFeature):
             existing_name = str(existing_name)
         except UnicodeEncodeError:
             pass
+        if hsh is None:
+            hsh = self._hash()
         if self._name:
             return '%s(%s) [%s]' %(self._name, self._remove_hashes(existing_name),
-                    self._hash())
+                    hsh)
         return '%s [%s]'%(self._remove_hashes(existing_name),
-                    self._hash())
+                    hsh)
 
     def depends_on_y(self):
         return any([f.depends_on_y() for f in self.features])
@@ -222,7 +219,7 @@ class ComboFeature(BaseFeature):
         tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
         pindex = get_np_hashable(self.context.prep_index) if self.depends_on_other_x() else ''
         return self.unique_name + '--' + md5('%s--%s--%s' % (s, tindex, pindex)).hexdigest()
-        
+
     def create(self, context, force=False):
         """ This is the prep for creating features. Has caching logic. """
 
@@ -254,7 +251,8 @@ class ComboFeature(BaseFeature):
 
     def _create(self, datas):
         data = self.combine(datas)
-        data.columns = data.columns.map(self.column_rename)
+        hsh = self._hash() # cache this so we dont recompute for every column
+        data.columns = data.columns.map(lambda x: self.column_rename(x, hsh))
         return data
 
 
@@ -268,7 +266,8 @@ class Feature(ComboFeature):
         data = self.feature.create(self.context, force)
         #data = DataFrame(data.copy())
         data = self._create(data)
-        data.columns = data.columns.map(self.column_rename)
+        hsh = self._hash() # cache this so we dont recompute for every column
+        data.columns = data.columns.map(lambda x: self.column_rename(x, hsh))
         return data
 
     def _create(self, data):
