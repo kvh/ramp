@@ -26,20 +26,14 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(stable_repr(f), stable_repr(f2))
 
         # repr is independent of object ids
-        def testf(): pass
-        f = F('test')
-        f.f = testf
-        print repr(f)
+        class Test: pass
+        f.f = Test()
         r1 = stable_repr(f)
-        del testf
-        def testf(): pass
-        f.f = testf
-        print repr(f)
+        f.f = Test()
         r2 = stable_repr(f)
         self.assertEqual(r1, r2)
 
 
-
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(verbosity=2)
 

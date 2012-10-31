@@ -149,12 +149,6 @@ class ComboFeature(BaseFeature):
         h = self._hash()
         return '%s [%s]' %(self, h)
 
-    def save(self, key, value):
-        self.dataset.save('%s-%s'%(self.unique_name, key), value)
-
-    def load(self, key):
-        return self.dataset.load('%s-%s'%(self.unique_name, key))
-
     def __str__(self):
         """
         a readable version of this feature (and its contained features)

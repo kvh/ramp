@@ -9,8 +9,6 @@ import hashlib
 import os
 import re
 
-debug = True
-
 
 def dumppickle(obj, fname, protocol=-1):
     """Pickle object `obj` to file `fname`."""
@@ -125,7 +123,7 @@ class ShelfStore(Store):
         # TODO: iterating keys is stupid slow for a shelf
         for k in s.keys():
             if keypart in k:
-                if debug:
+                if self.verbose:
                     print "Deleting '%s' from store"%k
                 del s[k]
 

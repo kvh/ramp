@@ -1,28 +1,11 @@
-#from history.models import *
-import urlparse
 import re
-from BeautifulSoup import BeautifulStoneSoup
 import numpy as np
 import random
 from hashlib import md5
 
-def _pprint(params, offset=0, printer=repr):
-    # Jacked from scikit-learn
-    """Pretty print the dictionary 'params'
 
-    Parameters
-    ----------
-    params: dict
-        The dictionary to pretty print
-
-    offset: int
-        The offset in characters to add at the begin of each line.
-
-    printer:
-        The function to convert entries to strings, typically
-        the builtin str or repr
-
-    """
+def _pprint(params):
+    """prints object state in stable manner"""
     params_list = list()
     line_sep = ','
     for i, (k, v) in enumerate(sorted(params.iteritems())):
@@ -33,7 +16,7 @@ def _pprint(params, offset=0, printer=repr):
             this_repr = '%s=%.10f' % (k, v)
         else:
             # use repr of the rest
-            this_repr = '%s=%s' % (k, printer(v))
+            this_repr = '%s=%r' % (k, v)
         params_list.append(this_repr)
 
     lines = ','.join(params_list)
@@ -200,12 +183,12 @@ def clean_url(u):
     return u.split('?')[0]
 
 
-import re
 splits = re.compile(r'[-/,;]')
 poss = re.compile(r"'s\b")
 bad = re.compile(r'[^0-9a-zA-Z\s]')
 compact = re.compile(r'\s+')
 sent = re.compile(r'[.!?]')
+
 
 def normalize(s):
     s = s.lower()
@@ -215,8 +198,10 @@ def normalize(s):
     s = bad.sub('', s)
     return s.strip()
 
+
 def tokenize(s):
     return [w for w in normalize(s).split() if w not in stop_words and len(w) > 1]
+
 
 def tokenize_keep_all(s):
     return [w for w in normalize(s).split() if w]
@@ -225,6 +210,7 @@ def tokenize_keep_all(s):
 def tokenize_with_sentinels(s):
     s = sent.sub(' SSENTT ', s)
     return [w for w in normalize(s).split() if w]
+
 
 def bag_of_words(s):
     words = tokenize(s)
@@ -239,12 +225,6 @@ def bag_of_words(s):
     #     bag[k] = v/n
     return bag
 
-
-
-# import MySQLdb
-# import sqlite3
-# dictionary = {}
-# terms = {}
 
 def add_terms(s):
     for t in tokenize(s):

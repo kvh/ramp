@@ -1,12 +1,11 @@
 from base import ComboFeature, Feature, DummyFeature
 from .. import models
-# from ..core import Storable, store, get_key, get_dataset
-from ..utils import make_folds
+from ..utils import make_folds, get_single_column
 from pandas import Series, DataFrame, concat
-from ..dataset import get_single_column
 
 
 class Predictions(Feature):
+    # TODO: update for new context
 
     def __init__(self, config, name=None, cv_folds=5,
             external_dataset_name=None, cache=False):

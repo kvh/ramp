@@ -76,10 +76,9 @@ class Configuration(object):
         for reporter in self.reporters:
             reporter.update_with_model(model)
 
-    def update_reporters_with_predictions(self, dataset, x, actuals, predictions):
+    def update_reporters_with_predictions(self, context, x, actuals, predictions):
         for reporter in self.reporters:
-            reporter.update_with_predictions(dataset, x, actuals, predictions)
-
+            reporter.update_with_predictions(context, x, actuals, predictions)
 
 
 class ConfigFactory(object):

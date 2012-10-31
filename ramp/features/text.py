@@ -9,17 +9,29 @@ from pandas import DataFrame, read_csv, concat, Series
 import hashlib
 import re
 import numpy as np
+import collections
 import math
 try:
     import nltk
+    from nltk.corpus import wordnet
+    wordlist = set(nltk.corpus.words.words('en'))
 except ImportError:
     pass
 
 debug = False
 
 
+class SentenceTokenizer(object):
+    re_sent = re.compile(r'[.!?]\s+')
 
-sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    def tokenize(self, s):
+        return self.re_sent.split(s)
+
+try:
+    sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+except:
+    sent_tokenizer = SentenceTokenizer()
+
 
 def make_docs_hash(docs):
     m = hashlib.md5()
@@ -31,7 +43,7 @@ def make_docs_hash(docs):
                 pass
     return m.hexdigest()
 
-#TODO: no more storable... :(
+
 class Dictionary(object):
     def __init__(self, mindocs=3, maxterms=100000, maxdocs=.9, force=False):
         self.mindocs = mindocs
@@ -57,7 +69,6 @@ class Dictionary(object):
         dct = self.dictionary(docs)
         dct.filter_extremes(no_below=self.mindocs, no_above=self.maxdocs,
                 keep_n=self.maxterms)
-        # dct.save(self.data_dir + self.name(docs))
         self.context.store.save(self.name(docs), dct)
         return dct
 
@@ -137,10 +148,12 @@ class TopicModelFeature(Feature):
         tvecs = DataFrame(vecs, index=data.index)
         return tvecs
 
+
 class LSI(TopicModelFeature):
     def __init__(self, *args, **kwargs):
         kwargs['topic_modeler'] = gensim.models.lsimodel.LsiModel
         super(LSI, self).__init__(*args, **kwargs)
+
 
 class SentenceLSI(TopicModelFeature):
     def __init__(self, *args, **kwargs):
@@ -195,12 +208,12 @@ class TFIDF(Feature):
 
 class NgramCounts(Feature):
     def __init__(self, feature, mindocs=50, maxterms=10000, maxdocs=1.,
-            bool=False, verbose=False):
+            bool_=False, verbose=False):
         super(NgramCounts, self).__init__(feature)
         self._name = self._name + '_%d,%d,%f'%(mindocs, maxterms, maxdocs)
         self.verbose = verbose
         self.dictionary = Dictionary(mindocs, maxterms, maxdocs)
-        self.bool = bool
+        self.bool_ = bool_
 
     def _prepare(self, data):
         data = get_single_column(data)
@@ -221,7 +234,7 @@ class NgramCounts(Feature):
                 columns=ids, index=data.index)
         df.columns = ['%s_%s' % (dct[i], data.name) for i in ids]
         df = df.fillna(0)
-        if self.bool:
+        if self.bool_:
             df = df.astype(bool).astype(int)
         return df
 
@@ -229,6 +242,8 @@ class NgramCounts(Feature):
 class SelectNgramCounts(NgramCounts):
     # TODO: make this a generic pre-selector (so intermediate isn't cached)
     def __init__(self, feature, selector, target, n_keep=50, train_only=False, *args, **kwargs):
+        # this needs work...
+        raise NotImplementedError
         super(SelectNgramCounts, self).__init__(feature, *args, **kwargs)
         self.selector = selector
         self.n_keep = n_keep
@@ -263,8 +278,6 @@ class SelectNgramCounts(NgramCounts):
         return data[cols]
 
 
-
-import nltk
 class TreebankTokenize(Feature):
 
     tokenizer = nltk.tokenize.treebank.TreebankWordTokenizer()
@@ -272,8 +285,10 @@ class TreebankTokenize(Feature):
     def _create(self, data):
         return data.applymap(self.tokenizer.tokenize)
 
+
 def ngrams(toks, n, sep='|'):
     return [sep.join(toks[i:i + n]) for i in range(len(toks) - n + 1)]
+
 class Ngrams(Feature):
     def __init__(self, feature, ngrams=1):
         self.ngrams = ngrams
@@ -387,7 +402,6 @@ class SpellingErrorCount(Feature):
 
 spelling_suggestions = {}
 
-import collections
 def words(text): return re.findall("[a-z']+", text.lower())
 
 def train(features):
@@ -396,9 +410,6 @@ def train(features):
         model[f] += 1
     return model
 
-
-wordlist = set(nltk.corpus.words.words('en'))
-from nltk.corpus import wordnet
 
 def is_nondict(t):
     return not wordnet.synsets(t) and t not in wordlist
@@ -511,15 +522,13 @@ class KeywordCount(Feature):
         return concat(cols, keys=[ '%s_%s'%(w, data.name) for w in self.words],
                 axis=1)
 
-# from char_freqs import char_freqs
-from collections import Counter
 def char_kl(txt):
     if not txt:
         return 0
     # all caps case... not sure what to do
     if txt.upper() == txt:
         return 1
-    c = Counter(txt)
+    c = collections.Counter(txt)
     kl = 0
     tot = float(len(txt))
     eps = 1.0e-05

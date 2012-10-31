@@ -1,19 +1,8 @@
-from core import get_dataset, _register_dataset
-from store import ShelfStore, DummyStore, PickleStore, Store
 from configuration import *
-import core
 from features.base import BaseFeature, Feature, ConstantFeature
-from pandas import concat, DataFrame, Series, Index
-import hashlib
-from sklearn import cross_validation
-from sklearn import feature_selection
-import scipy
-import numpy as np
-import re
-import os
-import random
-import copy
 from utils import _pprint, get_single_column
+from pandas import concat, DataFrame, Series, Index
+import numpy as np
 
 
 def build_target(target, context):

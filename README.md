@@ -82,10 +82,8 @@ transformations, metrics and feature selectors.
 
     for conf in factory:
         print conf
-        # perform cross validation and report F1 scores
+        # perform cross validation and report MCC scores
         models.print_scores(models.cv(ctx, conf))
 
 ### TODO
 - Docs
-- More tests
-- Simple distributed computation

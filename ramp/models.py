@@ -5,7 +5,7 @@ import hashlib
 import copy
 import numpy as np
 from sklearn import cross_validation, ensemble, linear_model
-from dataset import build_featureset, build_target
+from builders import build_featureset, build_target
 
 debug = False
 
