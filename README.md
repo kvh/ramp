@@ -22,8 +22,7 @@ Reduce feature dimension:
 Incorporate residuals or predictions to blend with other models:
 
     Residuals(config_model1) + Predictions(config_model2)
-
-Any feature that uses the target variable will automatically respect the
+Any feature that uses the target ("y") variable will automatically respect the
 current training and test sets.
 
 ### Caching
@@ -33,7 +32,7 @@ be retrieved, compared, blended, and reused between runs.
 
 ### Easily extensible
 Ramp has a simple API, allowing you to plug in estimators from
-scikit-learn, rpy2 and elsewhere, or build your own feature
+scikit-learn, rpy2 and elsewhere, or easily build your own feature
 transformations, metrics and feature selectors.
 
 
@@ -42,8 +41,6 @@ transformations, metrics and feature selectors.
     import tempfile
     import pandas
     import sklearn
-    from ramp import *
-    from ramp.selectors import RandomForestSelector
 
     # fetch iris data from UCI
     data = pandas.read_csv(urllib2.urlopen(
@@ -52,8 +49,8 @@ transformations, metrics and feature selectors.
     columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'class']
     data.columns = columns
 
-    # create ramp dataset
-    dataset = DataSet(data, name='iris', store=tempfile.mkdtemp() + 'test.store')
+    # create ramp analysis context
+    ctx = DataContext(store=HDFPickleStore(tempfile.mkdtemp()), data=data)
 
     # all features
     features = [FillMissing(f, 0) for f in columns[:-1]]
@@ -63,10 +60,10 @@ transformations, metrics and feature selectors.
     # base configuration
     base_conf = Configuration(
         target=AsFactor('class'),
-        metric=F1()
+        metric=GeneralizedMCC()
         )
 
-    # define several models and feature sets for enumeration
+    # define several models and feature sets to explore
     factory = ConfigFactory(base_conf,
         model=[
             sklearn.ensemble.RandomForestClassifier(n_estimators=20),
@@ -90,10 +87,8 @@ transformations, metrics and feature selectors.
 
     for conf in factory:
         print conf
-        # perform cross validation and report F1 scores
-        models.print_scores(models.cv(dataset, conf))
+        # perform cross validation and report MCC scores
+        models.print_scores(models.cv(ctx, conf))
 
 ### TODO
 - Docs
-- More tests
-- Simple distributed computation

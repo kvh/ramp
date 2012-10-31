@@ -3,15 +3,9 @@ sys.path.append('../..')
 from ramp import *
 from ramp import models
 from ramp.metrics import *
-from ramp import core
 import unittest
 import pandas
 from pandas import Series, DataFrame, Index
-# from datasets import *
-# from  import core
-# from features import *
-# from models import *
-# from metrics import *
 from sklearn import linear_model
 import numpy as np
 import os, sys, tempfile

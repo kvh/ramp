@@ -1,9 +1,10 @@
 import sys
 sys.path.append('../..')
-from ramp import *
-from ramp import core
-from ramp import store
+from ramp import context, store
+from ramp.features import base
+from ramp.features.base import *
 import unittest
+from pandas import DataFrame, Series, Index
 import pandas
 import tempfile
 
@@ -12,7 +13,6 @@ import numpy as np
 import os, sys
 
 from pandas.util.testing import assert_almost_equal
-from test_models import lm
 
 
 def strip_hash(s):
@@ -30,6 +30,8 @@ def make_data(n):
 
 
 class TestBasicFeature(unittest.TestCase):
+    def setUp(self):
+        self.data = make_data(10)
 
     def test_basefeature(self):
         f = BaseFeature('col1')
@@ -37,7 +39,6 @@ class TestBasicFeature(unittest.TestCase):
         self.assertEqual(str(f), 'col1')
         self.assertEqual(repr(f), "'col1'")
         self.assertEqual(f.unique_name, 'col1')
-        self.assertFalse(f.is_trained())
 
     def test_constantfeature_int(self):
         f = ConstantFeature(1)
@@ -45,7 +46,6 @@ class TestBasicFeature(unittest.TestCase):
         self.assertEqual(str(f), '1')
         self.assertEqual(repr(f), '1')
         self.assertEqual(f.unique_name, '1')
-        self.assertFalse(f.is_trained())
 
     def test_constantfeature_float(self):
         f = ConstantFeature(math.e)
@@ -54,7 +54,6 @@ class TestBasicFeature(unittest.TestCase):
         self.assertEqual(str(f), e_str)
         self.assertEqual(repr(f), '2.718281828459045')
         self.assertEqual(f.unique_name, e_str)
-        self.assertFalse(f.is_trained())
 
     def test_combofeature(self):
         f = ComboFeature(['col1', 'col2'])
@@ -64,7 +63,6 @@ class TestBasicFeature(unittest.TestCase):
         self.assertEqual(f.unique_name, 'Combo(col1, col2) [201b1e5d]')
         self.assertEqual(repr(f), "ComboFeature(_name='Combo',"
         "features=['col1', 'col2'])")
-        self.assertFalse(f.is_trained())
 
     def test_feature(self):
         f = Feature('col1')
@@ -73,56 +71,30 @@ class TestBasicFeature(unittest.TestCase):
         self.assertEqual(f.unique_name, 'col1 [4e89804a]')
         self.assertEqual(repr(f), "Feature(_name='',"
         "feature='col1',features=['col1'])")
-        self.assertFalse(f.is_trained())
 
+    def test_create_cache(self):
+        f = base.Normalize(base.F(10) + base.F('a'))
+        ctx = context.DataContext(store.MemoryStore('test', verbose=True), self.data)
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r.mean(), 0)
+        self.assertAlmostEqual(r.std(), 1)
 
+        # now add some new data
+        idx = len(self.data) + 1000
+        ctx.data = ctx.data.append(DataFrame([100, 200], columns=['a'], index=Index([idx, idx+1])))
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
 
-class TestFeatureCreate(unittest.TestCase):
-    def setUp(self):
-        n = 100
-        self.n = n
-        self.data = make_data(n)
-        #core.delete_data(force=True)
-        self.store = store.ShelfStore(tempfile.mkdtemp() + 'test.store')
-        self.ds = DataSet(
-                        name='$$test$$%d'%random.randint(100,10000),
-                        data=self.data,
-                        store=self.store,)
-
-    def test_feature_save(self):
-        f = Feature('col1')
-        f.dataset = self.ds
-        k = 'test'
-        v = 123
-        f.save(k, v)
-        self.assertEqual(f.load(k), v)
-        f2 = Feature('col2')
-        f2.dataset = self.ds
-        v2 = 456
-        f2.save(k, v2)
-        self.assertEqual(f.load(k), v)
-        self.assertEqual(f2.load(k), v2)
-
-    def test_create_feature(self):
-        f = Feature('a')
-        r_before = repr(f)
-        res = f.create(self.ds)
-        self.assertEqual(res.shape, (self.n,1))
-        self.assertEqual(res.columns, ['a [4c205f6a]'])
-        assert_almost_equal(res['a [4c205f6a]'], self.data['a'])
-        self.assertEqual(len(self.store.get_store()), 1)
-        r_after = repr(f)
-        self.assertEqual(r_before, r_after)
-        # recreate
-        f = Feature('a')
-        res = f.create(self.ds)
-        self.assertEqual(len(self.store.get_store()), 1)
-
-
+        # drop all the other data ... should still use old prep data
+        ctx.data = ctx.data.ix[[idx, idx+1]]
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
 
 
 
 if __name__ == '__main__':
     unittest.main()
-
 

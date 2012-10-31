@@ -1,5 +1,4 @@
 from base import Feature, ComboFeature, get_single_column
-from trained import TrainedFeature
 from ..selectors import LassoPathSelector
 try:
     import gensim
@@ -10,17 +9,29 @@ from pandas import DataFrame, read_csv, concat, Series
 import hashlib
 import re
 import numpy as np
+import collections
 import math
 try:
     import nltk
+    from nltk.corpus import wordnet
+    wordlist = set(nltk.corpus.words.words('en'))
 except ImportError:
     pass
 
 debug = False
 
 
+class SentenceTokenizer(object):
+    re_sent = re.compile(r'[.!?]\s+')
 
-sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    def tokenize(self, s):
+        return self.re_sent.split(s)
+
+try:
+    sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+except:
+    sent_tokenizer = SentenceTokenizer()
+
 
 def make_docs_hash(docs):
     m = hashlib.md5()
@@ -32,24 +43,24 @@ def make_docs_hash(docs):
                 pass
     return m.hexdigest()
 
-#TODO: no more storable... :(
+
 class Dictionary(object):
     def __init__(self, mindocs=3, maxterms=100000, maxdocs=.9, force=False):
         self.mindocs = mindocs
         self.maxterms = maxterms
         self.maxdocs = maxdocs
         self.dictionary = gensim.corpora.Dictionary
-        self.dataset = None
+        self.context = None
         self.force = force
 
     def name(self, docs, type_='dict'):
         return '%s_%s_%s' % (make_docs_hash(docs), type_,
                 '%d,%d,%f'%(self.mindocs, self.maxterms, self.maxdocs))
 
-    def get_dict(self, dataset, docs):
-        self.dataset = dataset
+    def get_dict(self, context, docs):
+        self.context = context
         try:
-            dct = dataset.store.load(self.name(docs))
+            dct = context.store.load(self.name(docs))
             return dct
         except (KeyError, IOError):
             return self._make_dict(docs)
@@ -58,23 +69,22 @@ class Dictionary(object):
         dct = self.dictionary(docs)
         dct.filter_extremes(no_below=self.mindocs, no_above=self.maxdocs,
                 keep_n=self.maxterms)
-        # dct.save(self.data_dir + self.name(docs))
-        self.dataset.store.save(self.name(docs), dct)
+        self.context.store.save(self.name(docs), dct)
         return dct
 
-    def get_tfidf(self, dataset, docs):
-        self.dataset = dataset
+    def get_tfidf(self, context, docs):
+        self.context = context
         try:
-            return self.dataset.store.load(
+            return self.context.store.load(
                     self.name(docs, 'tfidf'))
         except (KeyError, IOError):
             return self._make_tfidf(docs)
 
     def _make_tfidf(self, docs):
-        dct = self.get_dict(self.dataset, docs)
+        dct = self.get_dict(self.context, docs)
         # corpus = [dct.doc2bow(d) for d in docs]
         tfidf = gensim.models.TfidfModel(dictionary=dct)
-        self.dataset.store.save(self.name(docs, 'tfidf'), tfidf)
+        self.context.store.save(self.name(docs, 'tfidf'), tfidf)
         return tfidf
 
 
@@ -94,6 +104,11 @@ class TopicModelFeature(Feature):
         self.force = force
         self._name = '%s_%d' %(self._name, num_topics)
 
+    def _prepare(self, data):
+        docs = list(data.values)
+        dct, tfidf, lsi = self.make_engine(docs)
+        return dct, tfidf, lsi
+
     def _create(self, data):
         data = get_single_column(data)
         vecs = None #self.load('topic_vecs')
@@ -104,47 +119,19 @@ class TopicModelFeature(Feature):
 
     def make_engine(self, docs):
         print "building topic model"
-        dct = self.dictionary.get_dict(self.dataset, docs)
+        dct = self.dictionary.get_dict(self.context, docs)
         corpus = [dct.doc2bow(d) for d in docs]
-        tfidf = self.dictionary.get_tfidf(self.dataset, docs)
+        tfidf = self.dictionary.get_tfidf(self.context, docs)
         topic_model = self.topic_modeler(corpus=tfidf[corpus], id2word=dct,
                 num_topics=self.num_topics)
         print topic_model
-        topic_model.save(self.dataset.data_dir + self.topic_model_name)
         return dct, tfidf, topic_model
 
-    @property
-    def vectors_name(self):
-        return self.make_key('vecs')
-    @property
-    def topic_model_name(self):
-        return self._docs_hash + self.topic_modeler.__name__
-
-    def load_engine(self, data):
-        # if self.stored_model:
-        #     dct = self.dictionary.load(self.data_dir + self.stored_model[0])
-        #     tfidf = gensim.models.TfidfModel.load(self.data_dir + self.stored_model[1])
-        #     lsi = self.topic_modeler.load(self.data_dir + self.stored_model[2])
-        #     print "using stored model"
-        # else:
-        dct = self.dictionary.get_dict(self.dataset, data)
-        tfidf = self.dictionary.get_tfidf(self.dataset, data)
-        lsi = self.topic_modeler.load(self.dataset.data_dir + self.topic_model_name)
-        return (dct, tfidf, lsi)
-
-    def make_vectors(self, ds, n=None):
-        docs = list(ds.values)
-        self._docs_hash = make_docs_hash(docs)
-        try:
-            if self.force:
-                dct, tfidf, lsi = self.make_engine(docs)
-            else:
-                dct, tfidf, lsi = self.load_engine(docs)
-        except IOError:
-            dct, tfidf, lsi = self.make_engine(docs)
+    def make_vectors(self, data, n=None):
+        dct, tfidf, lsi = self.get_prep_data(data)
         vecs = []
         print "Making topic vectors"
-        for i, txt in enumerate(ds):
+        for i, txt in enumerate(data):
             topic_vec = dict(
                     lsi[tfidf[dct.doc2bow(
                         txt)]]
@@ -158,13 +145,15 @@ class TopicModelFeature(Feature):
                 for k in missing:
                     topic_vec[k] = 0
             vecs.append(topic_vec)
-        tvecs = DataFrame(vecs, index=ds.index)
+        tvecs = DataFrame(vecs, index=data.index)
         return tvecs
+
 
 class LSI(TopicModelFeature):
     def __init__(self, *args, **kwargs):
         kwargs['topic_modeler'] = gensim.models.lsimodel.LsiModel
         super(LSI, self).__init__(*args, **kwargs)
+
 
 class SentenceLSI(TopicModelFeature):
     def __init__(self, *args, **kwargs):
@@ -172,6 +161,7 @@ class SentenceLSI(TopicModelFeature):
         super(SentenceLSI, self).__init__(*args, **kwargs)
 
     def make_docs(self, data):
+        # TODO: this doesnt exist anymore
         sents = []
         for txt in data:
             sents.extend(sent_tokenizer.tokenize(txt))
@@ -188,6 +178,7 @@ class LDA(TopicModelFeature):
 
 
 class TFIDF(Feature):
+    #TODO: prep-ify
     def __init__(self, feature, mindocs=50, maxterms=10000, maxdocs=1.):
         super(TFIDF, self).__init__(feature)
         # self.mindocs = mindocs
@@ -204,8 +195,8 @@ class TFIDF(Feature):
 
     def _create(self, data):
         docs = list(data)
-        dct = self.dictionary.get_dict(self.dataset, docs)
-        tfidf = self.dictionary.get_tfidf(self.dataset, docs)
+        dct = self.dictionary.get_dict(self.context, docs)
+        tfidf = self.dictionary.get_tfidf(self.context, docs)
         docs = [dct.doc2bow(d) for d in docs]
         vecs = tfidf[docs]
         df = DataFrame([dict(row) for row in vecs], index=data.index)
@@ -214,32 +205,45 @@ class TFIDF(Feature):
         print df
         return df
 
+
 class NgramCounts(Feature):
     def __init__(self, feature, mindocs=50, maxterms=10000, maxdocs=1.,
-            verbose=False):
+            bool_=False, verbose=False):
         super(NgramCounts, self).__init__(feature)
         self._name = self._name + '_%d,%d,%f'%(mindocs, maxterms, maxdocs)
         self.verbose = verbose
         self.dictionary = Dictionary(mindocs, maxterms, maxdocs)
+        self.bool_ = bool_
 
-    def _create(self, data):
+    def _prepare(self, data):
         data = get_single_column(data)
         docs = list(data)
         if self.verbose:
             print docs[:10]
-        dct = self.dictionary.get_dict(self.dataset, docs)
+        dct = self.dictionary.get_dict(self.context, docs)
         if self.verbose:
             print dct
-        docs = [dct.doc2bow(d) for d in docs]
-        df = DataFrame([dict(row) for row in docs], index=data.index)
-        df.columns = ['%s_%s' % (dct[i], data.name) for i in df.columns]
+        return dct
+
+    def _create(self, data):
+        dct = self.get_prep_data(data)
+        data = get_single_column(data)
+        docs = [dct.doc2bow(d) for d in data]
+        ids = dct.keys()
+        df = DataFrame([dict(row) for row in docs],
+                columns=ids, index=data.index)
+        df.columns = ['%s_%s' % (dct[i], data.name) for i in ids]
         df = df.fillna(0)
+        if self.bool_:
+            df = df.astype(bool).astype(int)
         return df
 
 
 class SelectNgramCounts(NgramCounts):
-    # TODO: make this generic. pre-selector (so intermediate isn't cached)
+    # TODO: make this a generic pre-selector (so intermediate isn't cached)
     def __init__(self, feature, selector, target, n_keep=50, train_only=False, *args, **kwargs):
+        # this needs work...
+        raise NotImplementedError
         super(SelectNgramCounts, self).__init__(feature, *args, **kwargs)
         self.selector = selector
         self.n_keep = n_keep
@@ -249,26 +253,31 @@ class SelectNgramCounts(NgramCounts):
         self._cacheable = not train_only 
         self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
 
-    def is_trained(self):
+    def depends_on_y(self):
         return self.train_only
+
+    def _prepare(self, data):
+        dct = super(SelectNgramCounts, self)._prepare(data)
+        if self.train_only:
+            y = get_single_column(self.target.create(self.context)).reindex(self.context.train_index)
+            x = data.reindex(self.context.train_index)
+        else:
+            y = get_single_column(self.target.create(self.context))
+            x = data
+        cols = self.select(x, y)
+        return cols, dct
 
     def select(self, x, y):
         return self.selector.sets(x, y, self.n_keep)
 
     def _create(self, data):
+        # TODO: not sure how to prep this... need to recreate 
+        # inherited feature to get at its prepped data
         data = super(SelectNgramCounts, self)._create(data)
-        if self.train_only:
-            y = self.dataset.get_train_y(self.target, self.train_index)
-            x = data.reindex(self.train_index)
-        else:
-            y = self.dataset.get_train_y(self.target, data.index)
-            x = data
-        cols = self.select(x, y)
+        cols = self.get_prep_data(data)
         return data[cols]
 
 
-
-import nltk
 class TreebankTokenize(Feature):
 
     tokenizer = nltk.tokenize.treebank.TreebankWordTokenizer()
@@ -276,8 +285,10 @@ class TreebankTokenize(Feature):
     def _create(self, data):
         return data.applymap(self.tokenizer.tokenize)
 
+
 def ngrams(toks, n, sep='|'):
     return [sep.join(toks[i:i + n]) for i in range(len(toks) - n + 1)]
+
 class Ngrams(Feature):
     def __init__(self, feature, ngrams=1):
         self.ngrams = ngrams
@@ -286,6 +297,23 @@ class Ngrams(Feature):
 
     def _create(self, data):
         return data.applymap(lambda x: ngrams(x, self.ngrams))
+
+
+def chargrams(s, n):
+    st = '^'
+    end = '$'
+    # pad with start and end symbols
+    s = st * (n - 1) + s + end * (n - 1)
+    return [s[i:i+n] for i in range(len(s) - n + 1)]
+
+class CharGrams(Feature):
+    def __init__(self, feature, chars=4):
+        self.chars = chars
+        super(CharGrams, self).__init__(feature)
+        self._name += '_%d' % chars
+
+    def _create(self, data):
+        return data.applymap(lambda x: set(chargrams(x, self.chars)))
 
 
 class Tokenizer(Feature):
@@ -374,7 +402,6 @@ class SpellingErrorCount(Feature):
 
 spelling_suggestions = {}
 
-import collections
 def words(text): return re.findall("[a-z']+", text.lower())
 
 def train(features):
@@ -383,9 +410,6 @@ def train(features):
         model[f] += 1
     return model
 
-
-wordlist = set(nltk.corpus.words.words('en'))
-from nltk.corpus import wordnet
 
 def is_nondict(t):
     return not wordnet.synsets(t) and t not in wordlist
@@ -498,15 +522,13 @@ class KeywordCount(Feature):
         return concat(cols, keys=[ '%s_%s'%(w, data.name) for w in self.words],
                 axis=1)
 
-# from char_freqs import char_freqs
-from collections import Counter
 def char_kl(txt):
     if not txt:
         return 0
     # all caps case... not sure what to do
     if txt.upper() == txt:
         return 1
-    c = Counter(txt)
+    c = collections.Counter(txt)
     kl = 0
     tot = float(len(txt))
     eps = 1.0e-05

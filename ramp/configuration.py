@@ -1,5 +1,5 @@
 from features.base import BaseFeature, Feature
-from utils import _pprint
+from utils import _pprint, stable_repr
 import copy
 
 
@@ -35,10 +35,13 @@ class Configuration(object):
         for r in self.reporters:
             r.set_config(self)
 
+    def __getstate__(self):
+        # shallow copy dict and keep references
+        dct = self.__dict__.copy()
+        return dct
+
     def __repr__(self):
-        return '%s(%s)' % (
-                self.__class__.__name__,
-                _pprint(self.__dict__))
+        return stable_repr(self)
 
     def __str__(self):
         return '%s\n\tmodel: %s\n\t%d features\n\ttarget: %s' % (
@@ -73,10 +76,9 @@ class Configuration(object):
         for reporter in self.reporters:
             reporter.update_with_model(model)
 
-    def update_reporters_with_predictions(self, dataset, x, actuals, predictions):
+    def update_reporters_with_predictions(self, context, x, actuals, predictions):
         for reporter in self.reporters:
-            reporter.update_with_predictions(dataset, x, actuals, predictions)
-
+            reporter.update_with_predictions(context, x, actuals, predictions)
 
 
 class ConfigFactory(object):

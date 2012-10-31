@@ -1,53 +1,11 @@
 from base import ComboFeature, Feature, DummyFeature
 from .. import models
-# from ..core import Storable, store, get_key, get_dataset
-from ..utils import make_folds
+from ..utils import make_folds, get_single_column
 from pandas import Series, DataFrame, concat
 
-# class ModelPredictions(Feature):
-#     def __init__(self, config, name=None, cv_folds=5):
-#         # TODO: Hackkkkk
-#         super(ModelPredictions, self).__init__(config.features[0])
-#         self.cv_folds = cv_folds
-#         self.config = config
-#         if name:
-#             self._name = name
-#         else:
-#             self._name = '%s-%s' %(str(config.model)[:30], repr(self)[:8])
-
-#     def _create(self, data):
-#         return models.predict(self.dataset, self.config,
-#                 self.dataset.data.index, self.train_index)
-
-# class ModelResiduals(ModelPredictions):
-#     def __init__(self, *args, **kwargs):
-#         super(ModelResiduals, self).__init__(*args, **kwargs)
-
-#     def _create(self, data):
-#         preds = self.model.predict(self.dataset, self.features,
-#             self.dataset.data.index,
-#             self.dataset.train_index,
-#             column_subset=self.column_subset,
-#             target=self.target)
-#         return self.dataset.get_train_y(target=self.target) - preds
-
-class TrainedFeature(Feature):
-    pass
-    # def _create(self, data):
-    #     if self.train_index is None:
-    #         raise ValueError("A training index must be specified to create a "
-    #         "TrainedFeature")
-    #     return self.train(data)
-
-    # def train(self, data):
-    #     trainx = data.reindex(self.train_index)
-    #     #testx = data.drop(self.train_index)
-    #     y = self.dataset.get_train_y()
-    #     trainy = y.reindex(self.train_index)
-    #     self.fit(trainx, trainy)
-    #     return self.predict(data)
 
 class Predictions(Feature):
+    # TODO: update for new context
 
     def __init__(self, config, name=None, cv_folds=5,
             external_dataset_name=None, cache=False):
@@ -130,27 +88,34 @@ class CVPredictions(Predictions):
 
 class FeatureSelector(ComboFeature):
 
-    def __init__(self, features, selector, target, n_keep=50, trained=True,
+    def __init__(self, features, selector, target, n_keep=50, train_only=True,
             cache=False):
         super(FeatureSelector, self).__init__(features)
         self.selector = selector
         self.n_keep = n_keep
         self.target = target
-        self.trained = trained
+        self.train_only = train_only
         self._cacheable = cache
         self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
 
-    def is_trained(self):
-        return self.trained
+    def depends_on_y(self):
+        return self.train_only or super(FeatureSelector, self).depends_on_y()
+
+    def _prepare(self, data):
+        if self.train_only:
+            y = get_single_column(self.target.create(self.context)).reindex(self.context.train_index)
+            x = data.reindex(self.context.train_index)
+        else:
+            y = get_single_column(self.target.create(self.context))
+            x = data
+        cols = self.select(x, y)
+        return cols
 
     def select(self, x, y):
         return self.selector.sets(x, y, self.n_keep)
 
     def combine(self, datas):
         data = concat(datas, axis=1)
-        y = self.dataset.get_train_y(self.target, self.train_index)
-        x = data.reindex(self.train_index)
-        cols = self.select(x, y)
+        cols = self.get_prep_data(data)
         return data[cols]
-
 

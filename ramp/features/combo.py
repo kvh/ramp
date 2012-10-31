@@ -6,22 +6,9 @@ class ComboMap(ComboFeature):
     """ abstract base for binary operations on features """
     def __init__(self, features, name=None, fillna=0):
         super(ComboMap, self).__init__(features)
-        # self.function = function
-        # if name is None:
-        #     name = function.__name__
-        #self._name = name
         self.fillna = fillna
 
     def _combine(self, datas, function):
-        # dfs = []
-        # names = []
-        # for data in datas:
-        #                 names.append(data.columns[0])
-        #     data.
-        #     dfs.append(data)
-        #print dfs
-        # if self._name is None:
-        #     self._name = function.__name__
         data = datas[0]
         data = data.astype('float64')
         for d in datas[1:]:
@@ -63,6 +50,7 @@ class Interactions(ComboFeature):
         return concat(cols, keys=colnames, axis=1)
 
 class OutlierCount(ComboFeature):
+    # TODO: add prep
     def __init__(self, features, stdevs=5):
         super(OutlierCount, self).__init__(features)
         self.stdevs = stdevs
