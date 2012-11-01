@@ -14,13 +14,17 @@ since you usually want to run different models/features/training subsets. also,
 hard to implement (so many variables/data to key on, are they all really immutable?)
 """
 
-def get_xy(config, context):
+def get_x(config, context):
     x = build_featureset(config.features, context)
-    y = build_target(config.target, context)
-
     if config.column_subset:
         x = x[config.column_subset]
-    return x, y
+    return x
+
+def get_y(config, context):
+    return build_target(config.target, context)
+
+def get_xy(config, context):
+    return get_x(config, context), get_y(config, context)
 
 
 def get_key(config, context):
@@ -42,7 +46,7 @@ def fit(config, context):
         if debug:
             print train_x
         if debug:
-            print "Fitting model '%s'." % (config.model.__name__)
+            print "Fitting model '%s'." % (config.model)
 
         config.model.fit(train_x.values, train_y.values)
         context.store.save(get_key(config, context), config.model)
@@ -56,6 +60,8 @@ def predict(config, context, predict_index, fit_model=True):
     if (context.train_index & predict_index):
         print "WARNING: train and predict indices overlap..."
 
+    x, y = None, None
+
     if fit_model:
         x, y = fit(config, context)
 
@@ -64,19 +70,17 @@ def predict(config, context, predict_index, fit_model=True):
         # rebuild just the necessary x:
         ctx = context.copy()
         ctx.data = context.data.ix[predict_index]
-        x, y = get_xy(config, ctx)
-
-    # ensure correct columns exist:
-#    for col in columns_used:
-#        if col not in x.columns:
-#            print "WARNING: filling missing column '%s' with zeros" % col
-#            x[col] = Series(np.random.randn(len(x)) / 100, index=x.index)
-#    symdif = set(x.columns) ^ set(columns_used)
-#    if symdif:
-#        print symdif
-#        raise Exception("mismatched columns between fit and predict.")
-    # re-order columns
-#    x = x.reindex(columns=columns_used)
+        x = get_x(config, ctx)
+        try:
+            # we may or may not have y's in predict context
+            # we get them if we can for metrics and reporting
+            y = get_y(config, ctx)
+        except KeyError:
+            pass
+    
+    if debug:
+        print x.columns
+        print config.model.coef_
 
     predict_x = x.reindex(predict_index)
 
@@ -115,17 +119,4 @@ def print_scores(scores):
     print "%0.3f (+/- %0.3f) [%0.3f,%0.3f]" % (
           scores.mean(), scores.std(), min(scores),
           max(scores))
-
-
-def build_model(config, context, name=None):
-    models.fit(config, context)
-    context.store.save('model__%s' % name, get_key(config, context))
-
-
-def get_or_build_model(config, context, name):
-    try:
-        key = context.store.load('model__%s' % name)
-        config.model = context.store.load(key)
-    except KeyError:
-        build_model(config, context, name)
 
