@@ -7,16 +7,16 @@ from pandas import Series, DataFrame, concat
 class Predictions(Feature):
     # TODO: update for new context
 
-    def __init__(self, config, name=None, cv_folds=5,
-            external_dataset_name=None, cache=False):
+    def __init__(self, config, name=None, external_context=None,
+            cv_folds=5, cache=False):
         self.cv_folds = cv_folds
         self.config = config
-        self.external_dataset_name=external_dataset_name
+        self.external_context = external_context
         self.feature = DummyFeature()
         self._cacheable = cache
         self.trained = True
         super(Predictions, self).__init__(self.feature)
-        if self.external_dataset_name is not None:
+        if self.external_context is not None:
             # Dont need to retrain if using external dataset to train
             self.trained = False
         if not name:
@@ -24,30 +24,22 @@ class Predictions(Feature):
         self._name = '%s[%s,%d features]'%(name,
                 config.model.__class__.__name__, len(config.features))
 
-    def is_trained(self):
+    def depends_on_y(self):
         return self.trained
 
-    def set_train_index(self, index):
-        self.train_index = index
+    def depends_on_other_x(self):
+
 
     def _create(self, data):
-        self.train_dataset = self.dataset
-        if not hasattr(self, 'train_index') or self.train_index is None:
-            print "No training index provided, using dataset default."
-            self.train_index = self.dataset.train_index
-        if self.external_dataset_name:
-            self.train_dataset = get_dataset(self.external_dataset_name)
-            self.train_index = self.train_dataset.train_index
-        # print "building predictions on %d training samples (%d total) from dataset '%s'"%(
-        #         len(self.train_index), len(self.dataset.data), self.train_dataset.name)
-        # print "train index:", self.train_index[:20]
-        preds = self._predict()
+        context = self.context
+        if self.external_context:
+            context = self.external_context
+        preds = self._predict(context)
         preds = DataFrame(preds)
         return preds
 
-    def _predict(self):
-        return models.predict(self.dataset, self.config,
-                self.dataset._data.index, self.train_index, self.train_dataset)
+    def _predict(self, context):
+        return models.predict(self.config, context)
 
 
 class Residuals(Predictions):

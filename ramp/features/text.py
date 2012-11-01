@@ -229,7 +229,7 @@ class NgramCounts(Feature):
         dct = self.get_prep_data(data)
         data = get_single_column(data)
         docs = [dct.doc2bow(d) for d in data]
-        ids = dct.keys()
+        ids = sorted(dct.keys())
         df = DataFrame([dict(row) for row in docs],
                 columns=ids, index=data.index)
         df.columns = ['%s_%s' % (dct[i], data.name) for i in ids]
