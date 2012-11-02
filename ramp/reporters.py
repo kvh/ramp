@@ -23,7 +23,11 @@ class ConfusionMatrix(Reporter):
     def update_with_predictions(self, context, x, actuals, predictions):
         cm = metrics.confusion_matrix(actuals, predictions)
         self.config.target.context = context
-        factors = self.config.target.get_prep_data()
+        try:
+            factors = self.config.target.get_prep_data()
+        except KeyError:
+            print cm
+            return
         if factors:
             names = [f[0] for f in factors]
             df = DataFrame(cm, columns=names, index=names)

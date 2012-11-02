@@ -57,7 +57,7 @@ def fit(config, context):
 
 
 def predict(config, context, predict_index, fit_model=True):
-    if (context.train_index & predict_index):
+    if len(context.train_index & predict_index):
         print "WARNING: train and predict indices overlap..."
 
     x, y = None, None
@@ -77,7 +77,7 @@ def predict(config, context, predict_index, fit_model=True):
             y = get_y(config, ctx)
         except KeyError:
             pass
-    
+
     if debug:
         print x.columns
         print config.model.coef_
@@ -102,11 +102,13 @@ def cv(config, context, folds=5, repeat=2, save=False):
     if isinstance(folds, int):
         folds = make_folds(context.data.index, folds, repeat)
     scores = []
+    # we are overwriting indices, so make a copy
+    ctx = context.copy()
     for train, test in folds:
-        context.train_index = train
-        preds, x, y = predict(config, context, test)
+        ctx.train_index = train
+        preds, x, y = predict(config, ctx, test)
         actuals = y.reindex(test)
-        config.update_reporters_with_predictions(context, x, actuals, preds)
+        config.update_reporters_with_predictions(ctx, x, actuals, preds)
         scores.append(config.metric.score(actuals,
             preds))
     scores = np.array(scores)
