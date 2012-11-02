@@ -2,6 +2,8 @@ from features.base import BaseFeature, Feature
 from utils import _pprint, stable_repr
 import copy
 
+__all__ = ['Configuration', 'ConfigFactory']
+
 
 class Configuration(object):
 

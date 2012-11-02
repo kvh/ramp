@@ -9,6 +9,8 @@ import hashlib
 import os
 import re
 
+__all__ = ['DummyStore', 'MemoryStore', 'PickleStore', 'HDFPickleStore']
+
 
 def dumppickle(obj, fname, protocol=-1):
     """Pickle object `obj` to file `fname`."""

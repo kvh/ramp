@@ -43,7 +43,7 @@ class ConfigurationTest(unittest.TestCase):
         s = pickle.dumps(c)
         c2 = pickle.loads(s)
         self.assertEqual(repr(c), repr(c2))
-        
+
         # lambdas are not picklable, should fail
         c = Configuration(
                 features=['a', F('a'), Map('a', lambda x: len(x))],
