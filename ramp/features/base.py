@@ -197,6 +197,9 @@ class ComboFeature(BaseFeature):
         return data
 
     def get_prep_key(self):
+        """ stable, unique key for this feature and a given prep_index and train_index.
+        we key on train_index because prep data may involve training.
+        """
         s = get_np_hashable(self.context.prep_index)
         tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
         return self.unique_name + '--prep--' + md5('%s--%s' % (s, tindex)).hexdigest()
@@ -221,7 +224,7 @@ class ComboFeature(BaseFeature):
         return self.unique_name + '--' + md5('%s--%s--%s' % (s, tindex, pindex)).hexdigest()
 
     def create(self, context, force=False):
-        """ This is the prep for creating features. Has caching logic. """
+        """ Caching wrapper around actual feature creation """
 
         if hasattr(self, 'context'):
             print "Warning: existing context on '%s'"%self.unique_name

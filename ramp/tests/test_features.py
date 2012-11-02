@@ -1,8 +1,10 @@
 import sys
 sys.path.append('../..')
 from ramp import context, store
+from ramp.configuration import Configuration
 from ramp.features import base
 from ramp.features.base import *
+from ramp.features.trained import *
 import unittest
 from pandas import DataFrame, Series, Index
 import pandas
@@ -32,6 +34,7 @@ def make_data(n):
 class TestBasicFeature(unittest.TestCase):
     def setUp(self):
         self.data = make_data(10)
+        self.ctx = context.DataContext(store.MemoryStore('test', verbose=True), self.data)
 
     def test_basefeature(self):
         f = BaseFeature('col1')
@@ -74,7 +77,7 @@ class TestBasicFeature(unittest.TestCase):
 
     def test_create_cache(self):
         f = base.Normalize(base.F(10) + base.F('a'))
-        ctx = context.DataContext(store.MemoryStore('test', verbose=True), self.data)
+        ctx = self.ctx
         r = f.create(ctx)
         r = r[r.columns[0]]
         self.assertAlmostEqual(r.mean(), 0)
@@ -93,6 +96,86 @@ class TestBasicFeature(unittest.TestCase):
         r = r[r.columns[0]]
         self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
 
+
+class DummyEstimator(object):
+    def __init__(self):
+        pass
+
+    def fit(self, x, y):
+        self.fitx = x
+        self.fity = y
+
+    def predict(self, x):
+        self.predictx = x
+        p = np.zeros(len(x))
+        return p
+
+
+class DummyCVEstimator(object):
+    def __init__(self):
+        self.fitx = []
+        self.fity = []
+        self.predictx = []
+
+    def fit(self, x, y):
+        self.fitx.append(x)
+        self.fity.append(y)
+
+    def predict(self, x):
+        self.predictx.append(x)
+        p = np.zeros(len(x))
+        return p
+
+
+class TestTrainedFeature(unittest.TestCase):
+    def setUp(self):
+        self.data = make_data(10)
+        self.ctx = context.DataContext(store.MemoryStore('test', verbose=True), self.data)
+
+    def test_predictions(self):
+        idx = 10
+        est = DummyEstimator()
+        f = Predictions(
+                Configuration(target='y', features=[F('a')], model=est))
+        r = f.create(self.ctx)
+        r = r[r.columns[0]]
+        assert_almost_equal(est.fitx.transpose()[0], self.data['a'].values)
+        assert_almost_equal(est.predictx.transpose()[0], self.data['a'].values)
+
+    def test_predictions_held_out(self):
+        idx = 10
+        est = DummyEstimator()
+        f = Predictions(
+                Configuration(target='y', features=[F('a')], model=est))
+        self.ctx.train_index = self.ctx.train_index[:5]
+        r = f.create(self.ctx)
+        r = r[r.columns[0]]
+        assert_almost_equal(est.fitx.transpose()[0], self.data['a'].values[:5])
+        assert_almost_equal(est.predictx.transpose()[0], self.data['a'].values)
+
+    def test_predictions_cv(self):
+        idx = 10
+        est = DummyCVEstimator()
+
+        # make 2 folds
+        folds = [(self.ctx.train_index[:4], self.ctx.train_index[4:8]),
+                (self.ctx.train_index[4:8], self.ctx.train_index[:4])]
+
+        f = Predictions(
+                Configuration(target='y', features=[F('a')], model=est), cv_folds=folds)
+        self.ctx.train_index = self.ctx.train_index[:8]
+        r = f.create(self.ctx)
+        r = r[r.columns[0]]
+
+        # fit three times, one for each fold, one for held out data
+        self.assertEqual(len(est.fitx), 3)
+        assert_almost_equal(est.fitx[0].transpose()[0], self.data['a'].values[:4])
+        assert_almost_equal(est.fitx[1].transpose()[0], self.data['a'].values[4:8])
+        assert_almost_equal(est.fitx[2].transpose()[0], self.data['a'].values[:8])
+
+        assert_almost_equal(est.predictx[0].transpose()[0], self.data['a'].values[4:8])
+        assert_almost_equal(est.predictx[1].transpose()[0], self.data['a'].values[:4])
+        assert_almost_equal(est.predictx[2].transpose()[0], self.data['a'].values[8:])
 
 
 if __name__ == '__main__':

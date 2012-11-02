@@ -8,7 +8,14 @@ class Predictions(Feature):
     # TODO: update for new context
 
     def __init__(self, config, name=None, external_context=None,
-            cv_folds=5, cache=False):
+            cv_folds=None, cache=False):
+        """ If cv-folds is specified, will use k-fold cross-validation to
+        provide robust predictions.
+        (The predictions returned are those predicted on hold-out sets only.)
+        Will not provide overly-optimistic fit like Predictions will, but can
+        increase runtime significantly (nested cross-validation).
+        Can be int or iteratable of (train, test) indices
+        """
         self.cv_folds = cv_folds
         self.config = config
         self.external_context = external_context
@@ -28,60 +35,64 @@ class Predictions(Feature):
         return self.trained
 
     def depends_on_other_x(self):
+        return True
 
+    def get_context(self):
+        return self.external_context or self.context
+
+    def _prepare(self, data):
+        context = self.get_context()
+        pre_data = context.data
+        # only use training instances
+        context.data = data.reindex(context.train_index)
+        models.fit(self.config, context)
+        context.data = pre_data
+        return
 
     def _create(self, data):
-        context = self.context
-        if self.external_context:
-            context = self.external_context
-        preds = self._predict(context)
+        context = self.get_context()
+        if self.cv_folds:
+            if isinstance(self.cv_folds, int):
+                folds = make_folds(context.train_index, self.cv_folds)
+            else:
+                folds = self.cv_folds
+            preds = []
+            for train, test in folds:
+                ctx = context.copy()
+                ctx.train_index = train
+                preds.append(self._predict(ctx, test))
+            # if there is held-out data, use all of train to predict
+            # (these predictions use more data, so will be "better",
+            # not sure if that is problematic...)
+            remaining = context.data.index - context.train_index
+            if len(remaining):
+                preds.append(self._predict(context, remaining))
+            preds = concat(preds, axis=0)
+        else:
+            preds = self._predict(context)
         preds = DataFrame(preds)
         return preds
 
-    def _predict(self, context):
-        return models.predict(self.config, context)
+    def _predict(self, context, pred_index=None):
+        if pred_index is None:
+            pred_index = context.data.index
+        return models.predict(self.config, context, pred_index)[0]
 
 
 class Residuals(Predictions):
 
-    def _predict(self):
-        preds = models.predict(self.dataset, self.config,
-                self.dataset.train_index, self.train_index, self.train_dataset)
-        return self.dataset.get_train_y(target=self.config.actual) - preds
-
-
-class CVPredictions(Predictions):
-
-    def _predict(self):
-        if self.train_index is None:
-            raise ValueError("A training index must be specified to create a "
-            "TrainedFeature")
-        preds = []
-        # the actual predictions made are from k-fold cross val
-        # otherwise the model will fit better in training than in
-        # validation/test (you may end up with nested cross-val here...)
-        for train, test in make_folds(self.train_index, self.cv_folds):
-            # print train, test
-            preds.append(models.predict(self.dataset, self.config, test, train,
-                self.train_dataset))
-        if self.train_dataset == self.dataset:
-            valid_index = self.dataset._data.index - self.train_index
-        else:
-            valid_index = self.dataset._data.index
-        if len(valid_index):
-            preds.append(models.predict(self.dataset, self.config,
-                valid_index,
-                self.train_index,
-                self.train_dataset
-                ))
-        data = concat(preds, axis=0)
-        return data
+    def _predict(self, context, pred_index=None):
+        if pred_index is None:
+            pred_index = context.data.index
+        preds = models.predict(self.config, context, pred_index)[0]
+        return get_single_column(self.config.target.create(context)) - preds
 
 
 class FeatureSelector(ComboFeature):
 
     def __init__(self, features, selector, target, n_keep=50, train_only=True,
             cache=False):
+        """ train_only: if true, features are selected only using training index data (recommended)"""
         super(FeatureSelector, self).__init__(features)
         self.selector = selector
         self.n_keep = n_keep
