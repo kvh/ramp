@@ -3,9 +3,11 @@ from pandas import Series, concat
 from scipy.stats import norm
 import random
 import hashlib
+import math
 import copy
 import numpy as np
 from sklearn import cross_validation, ensemble, linear_model
+
 
 class Selector(object):
     def __init__(self, verbose=False):
@@ -91,6 +93,7 @@ class RandomForestSelector(Selector):
         sets = [[t[1] for t in imps[:i+1]] for i in range(len(imps))]
         return sets
 
+
 class StepwiseForwardSelector(Selector):
     def __init__(self, n=100, min_=True):
         self.n = n
@@ -124,6 +127,7 @@ class StepwiseForwardSelector(Selector):
             remaining = remaining.drop([col])
             yield list(curr)
 
+
 class LassoPathSelector(Selector):
 
     def sets(self, x, y, n_keep):
@@ -136,12 +140,6 @@ class LassoPathSelector(Selector):
             if len(cols) >= n_keep:
                 return cols
         return cols
-#            sets.append(cols)
-#            for col in cols:
-#                if col not in seen:
-#                    print len(seen), col
-#                    seen.add(col)
-#        return sets
 
 
 class BinaryFeatureSelector(Selector):
@@ -182,8 +180,22 @@ class BinaryFeatureSelector(Selector):
     def rank(self, x, y):
         cnts = y.value_counts()
         scores = []
+
         def e(x, y):
-            return -x / (x + y) * math.log(x / (x + y)) - y / (x + y) * math.log(y / (x + y))
+            if abs(y) < .000000001:
+                yx = 0
+                lyx = 0
+            else:
+                yx = y / (x + y)
+                lyx = math.log(y / (x + y))
+            if abs(x) < .000000001:
+                xy = 0
+                lxy = 0
+            else:
+                xy = x / (x + y)
+                lxy = math.log(x / (x + y))
+            return - xy * lxy - yx * lyx
+
         for c in x.columns:
             true_positives = float(np.count_nonzero(np.logical_and(x[c], y)))
             false_positives = float(np.count_nonzero(np.logical_and(x[c], np.logical_not(y))))
