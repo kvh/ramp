@@ -35,7 +35,7 @@ class RMSE(Metric):
 # Classification
 class AUC(SKLearnMetric):
     reverse = True
-    metric = staticmethod(metrics.auc)
+    metric = staticmethod(metrics.auc_score)
 
 
 class F1(SKLearnMetric):
@@ -72,5 +72,7 @@ class GeneralizedMCC(Metric):
         n = c.shape[0]
         numer = sum([c[k,k] * c[m,l] - c[l,k] * c[k,m] for k in range(n) for l in range(n) for m in range(n)])
         denom = math.sqrt(self.cov(c, n)) * math.sqrt(self.cov(c, n, flip=True))
+        if abs(denom) < .00000001:
+            return numer
         return numer/denom
 

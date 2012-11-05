@@ -9,13 +9,13 @@ class Configuration(object):
 
     DEFAULT_PREDICTIONS_NAME = '$predictions'
 
-    def __init__(self, target=None, features=None, metric=None, model=None,
+    def __init__(self, target=None, features=None, metrics=None, model=None,
             column_subset=None, prediction=None, predictions_name=None,
             actual=None, reporters=None):
-        self.set_attrs(target, features, metric, model,
+        self.set_attrs(target, features, metrics, model,
                 column_subset, prediction, predictions_name, actual, reporters)
 
-    def set_attrs(self, target=None, features=None, metric=None, model=None,
+    def set_attrs(self, target=None, features=None, metrics=None, model=None,
             column_subset=None, prediction=None,
             predictions_name=None, actual=None, reporters=None):
         if prediction is not None:
@@ -30,7 +30,7 @@ class Configuration(object):
         self.actual = actual if isinstance(actual, BaseFeature) else Feature(actual)
         self.features = [f if isinstance(f, BaseFeature) else Feature(f) for f
                 in features] if features else None
-        self.metric = metric
+        self.metrics = metrics or []
         self.model = model
         self.column_subset = column_subset
         self.reporters = reporters or []
@@ -66,11 +66,11 @@ class Configuration(object):
         if 'target_name' in kwargs:
             if kwargs['target_name'] != self.target.unique_name:
                 return False
-        if 'metric' in kwargs:
-            if kwargs['metric'].__class__ != self.metric.__class__:
+        if 'metrics' in kwargs:
+            if kwargs['metrics'].__class__ not in [m.__class__ for m in self.metrics]:
                 return False
         if 'model' in kwargs:
-            if kwargs['model'].__class__!= self.model.__class__:
+            if kwargs['model'].__class__ != self.model.__class__:
                 return False
         return True
 

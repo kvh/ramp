@@ -97,11 +97,11 @@ def predict(config, context, predict_index, fit_model=True):
     return preds, x, y
 
 
-def cv(config, context, folds=5, repeat=2, save=False):
+def cv(config, context, folds=5, repeat=2, print_results=False):
     # TODO: too much overloading on folds here
     if isinstance(folds, int):
         folds = make_folds(context.data.index, folds, repeat)
-    scores = []
+    scores = dict([(m.name, []) for m in config.metrics])
     # we are overwriting indices, so make a copy
     ctx = context.copy()
     for train, test in folds:
@@ -109,16 +109,22 @@ def cv(config, context, folds=5, repeat=2, save=False):
         preds, x, y = predict(config, ctx, test)
         actuals = y.reindex(test)
         config.update_reporters_with_predictions(ctx, x, actuals, preds)
-        scores.append(config.metric.score(actuals,
-            preds))
-    scores = np.array(scores)
+        for metric in config.metrics:
+            scores[metric.name].append(
+                    metric.score(actuals,preds))
     #if save:
         #dataset.save_models([(scores, copy.copy(config))])
+    if print_results:
+        print "\n" + str(config)
+        print_scores(scores)
     return scores
 
 
-def print_scores(scores):
-    print "%0.3f (+/- %0.3f) [%0.3f,%0.3f]" % (
-          scores.mean(), scores.std(), min(scores),
-          max(scores))
+def print_scores(scores_dict):
+    for metric, scores in scores_dict.items():
+        scores = np.array(scores)
+        print metric
+        print "%0.4f (+/- %0.4f) [%0.4f,%0.4f]\n" % (
+            scores.mean(), scores.std(), min(scores),
+            max(scores))
 

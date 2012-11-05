@@ -1,10 +1,10 @@
+import numpy as np
 from rpy2.robjects import FloatVector
 from rpy2.robjects.packages import importr
 from rpy2 import robjects
 stats = importr('stats')
 base = importr('base')
 
-import numpy as np
 
 def matrix_to_r_dataframe(x):
         rx = FloatVector(np.ravel(x))
