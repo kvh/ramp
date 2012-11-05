@@ -14,7 +14,7 @@ import math
 try:
     import nltk
     from nltk.corpus import wordnet
-    wordlist = set(nltk.corpus.words.words('en'))
+    #wordlist = set(nltk.corpus.words.words('en'))
 except ImportError:
     pass
 
@@ -136,12 +136,8 @@ class TopicModelFeature(Feature):
                     lsi[tfidf[dct.doc2bow(
                         txt)]]
                     )
-            if not topic_vec:
-                print "blank topic vector"
             if len(topic_vec) != self.num_topics:
-                print "short vector"
                 missing = set(range(self.num_topics)) - set(topic_vec.keys())
-                print "filling with zero for %d topics" %len(missing)
                 for k in missing:
                     topic_vec[k] = 0
             vecs.append(topic_vec)
@@ -207,7 +203,7 @@ class TFIDF(Feature):
 
 
 class NgramCounts(Feature):
-    def __init__(self, feature, mindocs=50, maxterms=10000, maxdocs=1.,
+    def __init__(self, feature, mindocs=50, maxterms=100000, maxdocs=1.,
             bool_=False, verbose=False):
         super(NgramCounts, self).__init__(feature)
         self._name = self._name + '_%d,%d,%f'%(mindocs, maxterms, maxdocs)

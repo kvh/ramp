@@ -8,6 +8,9 @@ class Probabilities(object):
     def __init__(self, estimator):
         self.estimator = estimator
 
+    def __str__(self):
+        return u"Probabilites for %s" % self.estimator
+
     def fit(self, x, y):
         self.estimator.fit(x,y)
 

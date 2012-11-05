@@ -2,7 +2,7 @@ import pandas
 import tables
 from tables.exceptions import NoSuchNodeError
 import cPickle as pickle
-#for large objects have to use pickle due to this bug: http://bugs.python.org/issue13555
+#for large objects you have to use pickle due to this bug: http://bugs.python.org/issue13555
 #import pickle
 import shelve
 import hashlib
@@ -79,7 +79,7 @@ class PickleStore(Store):
 
     def safe_name(self, key):
         key_name = re_file.sub('_', key)
-        return '_%s__%s' % (hashlib.md5(key).hexdigest()[:10], key_name[:30])
+        return '_%s__%s' % (hashlib.md5(key).hexdigest()[:10], key_name[:100])
 
     def get_fname(self, key):
         return os.path.join(self.path, self.safe_name(key))
@@ -95,7 +95,10 @@ class PickleStore(Store):
 
 
 class HDFPickleStore(PickleStore):
-
+    """
+    Attempts to store objects in HDF5 format (best numpy/pandas objects). Pickles them
+    to disk as a fall back.
+    """
     def get_store(self):
         return pandas.HDFStore(os.path.join(self.path, 'ramp.h5'))
 

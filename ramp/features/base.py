@@ -8,9 +8,9 @@ from hashlib import md5
 from ..utils import _pprint, get_np_hashable, get_single_column, stable_repr
 
 
-""" 
+"""
 Features are the core of Ramp. They are descriptions of transformations
-that operate on DataFrame columns. 
+that operate on DataFrame columns.
 
 Things to note:
     1. Features try to store everything they compute for later reuse. They
@@ -24,7 +24,7 @@ Things to note:
     3. Features are "prepped" in the context of certain rows ("x" values). For
     instance, you normalize a column (mean zero, stdev 1) using certain rows. 
     These prepped values are stored as well so they can be used in "un-prepped"
-    contexts (such as predicting a hold out set). You specify a prep_index
+    contexts (such as prediction on a hold out set). You specify a prep_index
     to indicate which rows are to be used in preparation.
     4. Features are *stateless*, except temporarily while being created they
     have an attached DataContext object. This is hard to enforce in 
@@ -99,6 +99,9 @@ class DummyFeature(BaseFeature):
 
 
 class ComboFeature(BaseFeature):
+    """
+    Abstract base for more complex features.
+    """
 
     hash_length = 8
     _cacheable = True
@@ -198,7 +201,7 @@ class ComboFeature(BaseFeature):
 
     def get_prep_key(self):
         """ stable, unique key for this feature and a given prep_index and train_index.
-        we key on train_index because prep data may involve training.
+        we key on train_index as well because prep data may involve training.
         """
         s = get_np_hashable(self.context.prep_index)
         tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
@@ -227,6 +230,7 @@ class ComboFeature(BaseFeature):
         """ Caching wrapper around actual feature creation """
 
         if hasattr(self, 'context'):
+            #TODO: this is acceptable in certain scenarios (eg grabbing prepped data)
             print "Warning: existing context on '%s'"%self.unique_name
 
         self.context = context
@@ -253,10 +257,19 @@ class ComboFeature(BaseFeature):
         return data
 
     def _create(self, datas):
+        """
+        Actual feature creation. 
+        """
         data = self.combine(datas)
         hsh = self._hash() # cache this so we dont recompute for every column
         data.columns = data.columns.map(lambda x: self.column_rename(x, hsh))
         return data
+
+    def combine(self, datas):
+        """
+        Needs to be overridden
+        """
+        raise NotImplementedError
 
 
 class Feature(ComboFeature):
@@ -274,6 +287,9 @@ class Feature(ComboFeature):
         return data
 
     def _create(self, data):
+        """
+        Should be overriden by inheriting classes.
+        """
         return data
 # handy shortcut
 F = Feature
@@ -425,7 +441,7 @@ class Power(Feature):
 
     def _create(self, data):
         return data.applymap(lambda x: x ** self.power)
-    
+
 
 class GroupMap(Feature):
     """ Applies a function over specific sub-groups of the data
