@@ -1,6 +1,12 @@
 import math
 import numpy as np
 from sklearn import metrics
+# sklearn api change:
+try:
+    auc_scorer = metrics.auc_score
+except AttributeError:
+    auc_scorer = metrics.auc
+
 
 class Metric(object):
     """
@@ -35,7 +41,7 @@ class RMSE(Metric):
 # Classification
 class AUC(SKLearnMetric):
     reverse = True
-    metric = staticmethod(metrics.auc_score)
+    metric = staticmethod(auc_scorer)
 
 
 class F1(SKLearnMetric):
