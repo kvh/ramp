@@ -1,12 +1,9 @@
 from hashlib import md5
 import copy
 from utils import get_np_hashable
-from store import HDFPickleStore, Store
+from store import HDFPickleStore, Store, default_store
 
 __all__ = ['DataContext']
-
-
-default_store = HDFPickleStore
 
 
 class DataContext(object):

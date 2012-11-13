@@ -1,6 +1,9 @@
 import pandas
-import tables
-from tables.exceptions import NoSuchNodeError
+try:
+    import tables
+    from tables.exceptions import NoSuchNodeError
+except ImportError:
+    NoSuchNodeError = None
 import cPickle as pickle
 #for large objects you have to use pickle due to this bug: http://bugs.python.org/issue13555
 #import pickle
@@ -139,4 +142,13 @@ class ShelfStore(Store):
 
     def get(self, key):
         return self.get_store()[key]
+
+
+try:
+    tables
+    default_store = HDFPickleStore
+except NameError:
+    print "Defaulting to basic pickle store. It is recommended \
+          you install py-tables for fast HDF5 format."
+    default_store = PickleStore
 
