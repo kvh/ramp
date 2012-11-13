@@ -1,5 +1,5 @@
 from utils import make_folds, _pprint
-from pandas import Series, concat
+from pandas import Series, concat, DataFrame
 import random
 import hashlib
 import copy
@@ -86,7 +86,10 @@ def predict(config, context, predict_index, fit_model=True):
 
     # make actual predictions
     ps = config.model.predict(predict_x.values)
-    preds = Series(ps, index=predict_x.index)
+    try:
+        preds = Series(ps, index=predict_x.index)
+    except:
+        preds = DataFrame(ps, index=predict_x.index)
 
     # prediction post-processing
     if config.prediction is not None:

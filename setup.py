@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 version = '0.1'
 
@@ -14,9 +14,7 @@ setup(name='ramp',
       author_email='kvh@science.io',
       url='http://github.com/kvh/ramp',
       license='BSD',
-      packages=find_packages('ramp'),
-      package_dir={'': 'ramp'},
-      include_package_data=True,
+      packages=['ramp'],
       zip_safe=False,
       install_requires=[
           'numpy',

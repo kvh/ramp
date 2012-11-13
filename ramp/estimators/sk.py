@@ -16,5 +16,4 @@ class Probabilities(object):
 
     def predict(self, x):
         probs = self.estimator.predict_proba(x)
-        probs = [p[1] for p in probs]
         return probs

@@ -215,7 +215,7 @@ class ComboFeature(BaseFeature):
         except KeyError:
             if data is None:
                 raise KeyError()
-            print "Prepping '%s'" % self.unique_name
+        print "Prepping '%s'" % self.unique_name
         prep_data = self._prepare(data.reindex(self.context.prep_index))
         self.context.store.save(self.get_prep_key(), prep_data)
         return prep_data
@@ -532,7 +532,6 @@ class ColumnSubset(Feature):
             cols = [c for c in data.columns if any([s in c for s in self.subset])]
         else:
             cols = self.subset
-        print cols
         return data[cols]
 
 
