@@ -6,12 +6,35 @@ __all__ = ['Configuration', 'ConfigFactory']
 
 
 class Configuration(object):
-
+    """
+    Defines a specific data analysis model,
+    including features, estimator and target metric.
+    """
     DEFAULT_PREDICTIONS_NAME = '$predictions'
 
-    def __init__(self, target=None, features=None, metrics=None, model=None,
-            column_subset=None, prediction=None, predictions_name=None,
-            actual=None, reporters=None):
+    def __init__(self, target=None, features=None, model=None, metrics=None,
+            reporters=None, column_subset=None, prediction=None, predictions_name=None,
+            actual=None):
+        """
+        Args:
+
+        target: `Feature` or basestring specifying the target ("y") variable of the analysis.
+
+        features: an iterable of `Features <Feature>` to be used by the estimator in the analysis.
+
+        model: an estimator instance compatible with sklearn estimator conventions. (has fit(x, y) and predict(y) methods).
+
+        metrics: an iterable of evaluation `Metric`s used to score predictions.
+
+        reporters: an iterable of `Reporter` objects
+
+        prediction: a `Feature` transformation of the special `predictions_name` column used to post-process predictions prior to metric scoring.
+
+        predictions_name: a unique string used as a column identifier for model predictions. Must be unique among all feature names: eg '$logreg_predictions$'
+
+        actual: a `Feature`. Used if `target` represents a transformation that is NOT the actual target "y" values. Used in conjuction with
+                    `prediction` to allow model training, predictions and scoring to operate on different values.
+        """
         self.set_attrs(target, features, metrics, model,
                 column_subset, prediction, predictions_name, actual, reporters)
 

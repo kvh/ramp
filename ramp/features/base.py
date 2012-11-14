@@ -29,6 +29,44 @@ Things to note:
     4. Features are *stateless*, except temporarily while being created they
     have an attached DataContext object. This is hard to enforce in 
     python unfortunately...
+
+
+Creating your own features
+==========================
+
+Extending ramp with your own feature transformations is fairly straightforward.
+For features that operate on a single feature, inherit from
+`Feature`, for features operating on multiple features, inherit from
+`ComboFeature`. For either of these, you will need to override the `_create' method,
+as well as optionally `__init__` if your feature has extra params.
+Additionally, if your feature depends on other "x" values (for example it normalizes
+columns using the mean and stdev of the data), you will need to define a 
+`_prepare` method that returns a dict (or other picklable object)
+with the required values. To get these "prepped" values, you will call
+`get_prep_data` from your `_create` method. A simple (mathematically unsafe)
+normalization example:
+
+    class Normalize(Feature):
+
+        def _prepare(self, data):
+            cols = {}
+            for col in data.columns:
+                d = data[col]
+                m = d.mean()
+                s = d.std()
+                cols[col] = (m, s)
+            return cols
+
+        def _create(self, data):
+            col_stats = self.get_prep_data(data)
+            d = DataFrame(index=data.index)
+            for col in data.columns:
+                m, s = col_stats[col]
+                d[col] = data[col].map(lambda x: (x - m)/s)
+            return d
+
+This allows ramp to cache prep data and reuse it in contexts where the
+initial data is not available, as well as prevent unnecessary recomputation.
 """
 
 
@@ -100,7 +138,7 @@ class DummyFeature(BaseFeature):
 
 class ComboFeature(BaseFeature):
     """
-    Abstract base for more complex features.
+    Abstract base for more complex features
     """
 
     hash_length = 8
@@ -108,6 +146,10 @@ class ComboFeature(BaseFeature):
     re_hsh = re.compile(r' \[\w{%d}\]' % hash_length)
 
     def __init__(self, features):
+        """
+        Inheriting classes responsible for setting human-readable description of
+        feature and parameters on _name attribute.
+        """
         self.features = []
         if not isinstance(features, list) and not isinstance(features, tuple):
             features = [features]
@@ -140,7 +182,7 @@ class ComboFeature(BaseFeature):
     @property
     def unique_name(self):
         """
-        must provide a unique string as a funtion of this feature, its
+        Must provide a unique string as a funtion of this feature, its
         parameter settings, and all it's contained features. It should also be
         readable and maintain a reasonable length (by hashing, for instance).
         """
@@ -149,7 +191,7 @@ class ComboFeature(BaseFeature):
 
     def __str__(self):
         """
-        a readable version of this feature (and its contained features)
+        A readable version of this feature (and its contained features)
         """
         f = ', '.join([str(f) for f in self.features])
         if self._name:
@@ -162,7 +204,7 @@ class ComboFeature(BaseFeature):
 
     def column_rename(self, existing_name, hsh=None):
         """
-        like unique_name, but in addition must be unique to each column of this
+        Like unique_name, but in addition must be unique to each column of this
         feature. accomplishes this by prepending readable string to existing
         column name and replacing unique hash at end of column name.
         """
@@ -200,7 +242,8 @@ class ComboFeature(BaseFeature):
         return data
 
     def get_prep_key(self):
-        """ stable, unique key for this feature and a given prep_index and train_index.
+        """
+        Stable, unique key for this feature and a given prep_index and train_index.
         we key on train_index as well because prep data may involve training.
         """
         s = get_np_hashable(self.context.prep_index)
@@ -258,7 +301,7 @@ class ComboFeature(BaseFeature):
 
     def _create(self, datas):
         """
-        Actual feature creation. 
+        Actual feature creation.
         """
         data = self.combine(datas)
         hsh = self._hash() # cache this so we dont recompute for every column
@@ -273,12 +316,18 @@ class ComboFeature(BaseFeature):
 
 
 class Feature(ComboFeature):
-
+    """
+    Base class for features operating on single features.
+    """
     def __init__(self, feature):
         super(Feature, self).__init__([feature])
         self.feature = self.features[0]
 
     def create_data(self, force):
+        """
+        Overrides `ComboFeature` create_data method to only
+        operate on a single sub-feature.
+        """
         data = self.feature.create(self.context, force)
         #data = DataFrame(data.copy())
         data = self._create(data)
@@ -296,6 +345,10 @@ F = Feature
 
 
 class MissingIndicator(Feature):
+    """
+    Adds a missing indicator column for this feature.
+    Indicator will be 1 if given feature `isnan` (numpy definition), 0 otherwise.
+    """
     def _create(self, data):
         for col in data.columns:
             missing = data[col].map(lambda x: int(x.isnan()))
@@ -305,6 +358,9 @@ class MissingIndicator(Feature):
 
 
 class FillMissing(Feature):
+    """
+    Fills `na` values (pandas definition) with `fill_value`.
+    """
     def __init__(self, feature, fill_value):
         self.fill_value = fill_value
         super(FillMissing, self).__init__(feature)
@@ -314,12 +370,17 @@ class FillMissing(Feature):
 
 
 class Length(Feature):
+    """
+    Applies builtin `len` to feature.
+    """
     def _create(self, data):
-        return data.applymap(lambda x: len(x) + 1)
+        return data.applymap(lambda x: len(x))
 
 
 class Normalize(Feature):
-
+    """
+    Normalizes feature to mean zero, stdev one.
+    """
     def _prepare(self, data):
         cols = {}
         for col in data.columns:
@@ -342,6 +403,9 @@ class Normalize(Feature):
 
 
 class Discretize(Feature):
+    """
+    Bins values based on given cutoffs.
+    """
     def __init__(self, feature, cutoffs, values=None):
         super(Discretize, self).__init__(feature)
         self.cutoffs = cutoffs
@@ -360,7 +424,11 @@ class Discretize(Feature):
 
 
 class Map(Feature):
-
+    """
+    Applies given function to feature. Feature *cannot*
+    be anonymous (ie lambda). Must be defined in top level
+    (and thus picklable).
+    """
     def __init__(self, feature, function, name=None):
         super(Map, self).__init__(feature)
         self.function = function
@@ -374,7 +442,10 @@ class Map(Feature):
 
 
 class AsFactor(Feature):
-
+    """
+    Maps nominal values to ints and stores
+    mapping. Mapping may be provided at definition.
+    """
     def __init__(self, feature, levels=None):
         """ levels is list of tuples """
         super(AsFactor, self).__init__(feature)
@@ -399,7 +470,12 @@ class AsFactor(Feature):
 
 
 class AsFactorIndicators(Feature):
-
+    """
+    Maps nominal values to indicator columns. So
+    a column with values ['good', 'fair', 'poor'],
+    would be mapped to two indicator columns (the
+    third implied by zeros on the other two columns)
+    """
     def __init__(self, feature, levels=None):
         super(AsFactorIndicators, self).__init__(feature)
         self.levels = levels
@@ -407,7 +483,7 @@ class AsFactorIndicators(Feature):
     def _prepare(self, data):
         levels = self.levels
         if not levels:
-            levels = set(get_single_column(data))
+            levels = sorted(set(get_single_column(data)))
         return levels
 
     def _create(self, data):
@@ -419,7 +495,9 @@ class AsFactorIndicators(Feature):
 
 
 class IndicatorEquals(Feature):
-
+    """
+    Maps feature to one if equals given value, zero otherwise.
+    """
     def __init__(self, feature, value):
         super(IndicatorEquals, self).__init__(feature)
         self.value = value
@@ -430,11 +508,18 @@ class IndicatorEquals(Feature):
 
 
 class Log(Map):
+    """
+    Takes log of given feature. User is responsible for
+    ensuring values are in domain.
+    """
     def __init__(self, feature):
         super(Log, self).__init__(feature, math.log)
 
 
 class Power(Feature):
+    """
+    Takes feature to given power. Equivalent to operator: F('a') ** power.
+    """
     def __init__(self, feature, power=2):
         self.power = power
         super(Power, self).__init__(feature)
@@ -444,9 +529,11 @@ class Power(Feature):
 
 
 class GroupMap(Feature):
-    """ Applies a function over specific sub-groups of the data
+    """
+    Applies a function over specific sub-groups of the data
     Typically this will be with a MultiIndex (hierarchical index).
-    WARNING: this feature is not prepped... """
+    TODO: prep this feature
+    """
 
     #TODO: can we "prep" this??
 
@@ -467,24 +554,15 @@ class GroupMap(Feature):
             return data.apply(self.function)
 
 
-class Powers(Feature):
-    def __init__(self, feature, order=2):
-        self.order = order
-        super(Powers, self).__init__(feature)
-
-    def _create(self, data):
-        cols = {}
-        for i in range(1, self.order + 1):
-            cols[data.name + str(i)] = data ** i
-        return DataFrame(cols, index=data.index)
-
-
 def contain(x, mn, mx):
     if mx is not None and x > mx: return mx
     if mn is not None and x < mn: return mn
     return x
 
 class Contain(Feature):
+    """
+    Trims values to inside min and max.
+    """
     def __init__(self, feature, min=None, max=None):
         self.min = min
         self.max = max
