@@ -9,7 +9,9 @@ providing a simple, declarative syntax for
 exploring features, algorithms and transformations quickly and
 efficiently.
 
-### Complex feature transformations
+Documentation: http://ramp.readthedocs.org
+
+## Complex feature transformations
 Chain and combine features:
 
     Normalize(Log('x'))
@@ -25,12 +27,12 @@ Incorporate residuals or predictions to blend with other models:
 Any feature that uses the target ("y") variable will automatically respect the
 current training and test sets.
 
-### Caching
+## Caching
 Ramp caches and stores on disk in fast HDF5 format (or elsewhere if you want) all features and models it
 computes, so nothing is recomputed unnecessarily. Results are stored 
 and can be retrieved, compared, blended, and reused between runs.
 
-### Easily extensible
+## Easy extensibility
 Ramp has a simple API, allowing you to plug in estimators from
 scikit-learn, rpy2 and elsewhere, or easily build your own feature
 transformations, metrics, feature selectors, reporters, or estimators.
