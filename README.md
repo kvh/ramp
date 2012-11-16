@@ -39,69 +39,7 @@ transformations, metrics, feature selectors, reporters, or estimators.
 
 
 ## Quick example
-    import urllib2
-    import tempfile
-    import pandas
-    import sklearn
-
-
-    # fetch iris data from UCI
-    data = pandas.read_csv(urllib2.urlopen(
-        "http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data"))
-    data = data.drop([149])
-    columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'class']
-    data.columns = columns
-
-
-    # create Ramp analysis context
-    ctx = DataContext(tempfile.mkdtemp(), data=data)
-
-
-    # all features
-    features = [FillMissing(f, 0) for f in columns[:-1]]
-
-    # features, log transformed features, and interaction terms
-    expanded_features = features + [Log(F(f) + 1) for f in features] + [Interactions(features)]
-
-
-    # base configuration
-    base_conf = Configuration(
-        target=AsFactor('class'),
-        metric=GeneralizedMCC()
-        )
-
-
-    # define several models and feature sets to explore
-    factory = ConfigFactory(base_conf,
-        model=[
-            sklearn.ensemble.RandomForestClassifier(n_estimators=20),
-            sklearn.linear_model.LogisticRegression(),
-            ],
-        features=[
-            expanded_features,
-
-            # Feature selection
-            [FeatureSelector(
-                expanded_features,
-                RandomForestSelector(classifier=True), # use random forest's importance to trim
-                AsFactor('class'), # target to use
-                5, # keep top 5 features
-                )],
-
-            # Reduce feature dimension (pointless on this dataset)
-            [SVDDimensionReduction(expanded_features, n_keep=5)],
-
-            # Normalized features
-            [Normalize(f) for f in expanded_features],
-            ]
-        )
-
-
-    for conf in factory:
-        # perform cross validation and report MCC scores
-        models.cv(ctx, conf, print_results=True)
-
-A more detailed example: [Getting started with Ramp: Classifying insults](http://kenvanharen.com/)
+[Getting started with Ramp: Classifying insults](http://kenvanharen.com/)
 
 ## Status
 Ramp is very alpha currently, so expect bugs, bug fixes and API changes.
@@ -112,6 +50,3 @@ Ramp is very alpha currently, so expect bugs, bug fixes and API changes.
  * Pandas
  * PyTables
  * Sci-kit Learn
-
-## TODO
-- Docs
