@@ -7,8 +7,29 @@ __all__ = ['DataContext']
 
 
 class DataContext(object):
-
+    """
+    All Ramp analyses require a DataContext, consisting of:
+    * a :doc:`store <stores>` that caches (and typically 
+        persists) intermediate and final calculations
+    * current training and preparation indices
+    * the actual pandas data being analyzed (not always required)
+    """
     def __init__(self, store, data=None, train_index=None, prep_index=None):
+        """
+        Args:
+
+        store: An instance of `store.Store` or a path. If a path
+                Ramp will default to an `HDFPickleStore` at that path
+                if py-tables is installed, a `PickleStore` otherwise.
+        data: a pandas DataFrame. If all data has been precomputed this
+                may not be required.
+        train_index: a pandas Index specifying the data instances to be
+                used in training. Stored results will be cached against this.
+                If not provided, the entire index of `data` will be used.
+        prep_index: a pandas Index specifying the data instances to be
+                used in prepping ("x" values). Stored results will be cached against this.
+                If not provided, the entire index of `data` will be used.
+        """
         self.store = store if isinstance(store, Store) else default_store(store)
         self.data = data
         self.train_index = train_index if train_index is not None else self.data.index if self.data is not None else None
@@ -22,12 +43,22 @@ class DataContext(object):
             get_np_hashable(self.prep_index))).hexdigest()
 
     def save_context(self, name, config=None):
+        """
+        Saves this context (specifically it's train and prep indices)
+        to it's store with the given
+        name, along with the config, if provided.
+        """
         ctx = {'train_index':self.train_index,
                 'prep_index':self.prep_index,
                 'config':config}
         self.store.save('context__%s' % name, ctx)
 
     def load_context(self, name):
+        """
+        Loads a previously saved context with given name,
+        assigning the stored training and prep indices
+        and returning any stored config.
+        """
         ctx = self.store.load('context__%s' % name)
         self.train_index = ctx['train_index']
         self.prep_index = ctx['prep_index']

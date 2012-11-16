@@ -9,6 +9,7 @@ class Configuration(object):
     """
     Defines a specific data analysis model,
     including features, estimator and target metric.
+    Can be stored (pickled) and retrieved.
     """
     DEFAULT_PREDICTIONS_NAME = '$predictions'
 
@@ -107,7 +108,20 @@ class Configuration(object):
 
 
 class ConfigFactory(object):
+    """
+    Provides an iterator over passed in
+    configuration values, allowing for easy
+    exploration of models.
+    """
+
     def __init__(self, base_config, **kwargs):
+        """
+        Args:
+
+        base_config: The base `Configuration` to augment
+
+        kwargs: Can be any keyword accepted by `Configuration`. Values should be iterables.
+        """
         self.config = base_config
         self.kwargs = kwargs
 

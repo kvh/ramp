@@ -8,68 +8,6 @@ from hashlib import md5
 from ..utils import _pprint, get_np_hashable, get_single_column, stable_repr
 
 
-"""
-Features are the core of Ramp. They are descriptions of transformations
-that operate on DataFrame columns.
-
-Things to note:
-    1. Features try to store everything they compute for later reuse. They
-    base cache keys on the pandas index and column name, but not the actual
-    data, so for a given column name and index, a Feature will NOT recompute
-    anything, even if you have changed the value inside. (This applies only in the context of a
-    single storage path. Separate stores will not collide of course.)
-    2. Features are called "trained" when they depend on "y" values. For these 
-    features you should specify a train_index so that you do not pollute 
-    cross-validation with test "y" values.
-    3. Features are "prepped" in the context of certain rows ("x" values). For
-    instance, you normalize a column (mean zero, stdev 1) using certain rows. 
-    These prepped values are stored as well so they can be used in "un-prepped"
-    contexts (such as prediction on a hold out set). You specify a prep_index
-    to indicate which rows are to be used in preparation.
-    4. Features are *stateless*, except temporarily while being created they
-    have an attached DataContext object. This is hard to enforce in 
-    python unfortunately...
-
-
-Creating your own features
-==========================
-
-Extending ramp with your own feature transformations is fairly straightforward.
-For features that operate on a single feature, inherit from
-`Feature`, for features operating on multiple features, inherit from
-`ComboFeature`. For either of these, you will need to override the `_create' method,
-as well as optionally `__init__` if your feature has extra params.
-Additionally, if your feature depends on other "x" values (for example it normalizes
-columns using the mean and stdev of the data), you will need to define a 
-`_prepare` method that returns a dict (or other picklable object)
-with the required values. To get these "prepped" values, you will call
-`get_prep_data` from your `_create` method. A simple (mathematically unsafe)
-normalization example:
-
-    class Normalize(Feature):
-
-        def _prepare(self, data):
-            cols = {}
-            for col in data.columns:
-                d = data[col]
-                m = d.mean()
-                s = d.std()
-                cols[col] = (m, s)
-            return cols
-
-        def _create(self, data):
-            col_stats = self.get_prep_data(data)
-            d = DataFrame(index=data.index)
-            for col in data.columns:
-                m, s = col_stats[col]
-                d[col] = data[col].map(lambda x: (x - m)/s)
-            return d
-
-This allows ramp to cache prep data and reuse it in contexts where the
-initial data is not available, as well as prevent unnecessary recomputation.
-"""
-
-
 class BaseFeature(object):
 
     _cacheable = True
@@ -272,9 +210,8 @@ class ComboFeature(BaseFeature):
     def create(self, context, force=False):
         """ Caching wrapper around actual feature creation """
 
-        if hasattr(self, 'context'):
-            #TODO: this is acceptable in certain scenarios (eg grabbing prepped data)
-            print "Warning: existing context on '%s'"%self.unique_name
+        # save existing context
+        prev_context = getattr(self, "context", None)
 
         self.context = context
 
@@ -294,8 +231,9 @@ class ComboFeature(BaseFeature):
         if self._cacheable:
             self.context.store.save(self.create_key(), data)
 
-        # delete state attrs. features are stateless!
-        del self.context
+        # reassign previous context (typically None)
+        # this is for edge case of same feature object nested in itself
+        self.context = prev_context
 
         return data
 
@@ -317,7 +255,7 @@ class ComboFeature(BaseFeature):
 
 class Feature(ComboFeature):
     """
-    Base class for features operating on single features.
+    Base class for features operating on a single feature.
     """
     def __init__(self, feature):
         super(Feature, self).__init__([feature])
