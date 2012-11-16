@@ -8,19 +8,19 @@ __all__ = ['DataContext']
 
 class DataContext(object):
     """
-    All Ramp analyses require a DataContext, consisting of:
-    * a :doc:`store <stores>` that caches (and typically 
-        persists) intermediate and final calculations
-    * current training and preparation indices
-    * the actual pandas data being analyzed (not always required)
+    All Ramp analyses require a DataContext.
+    A DataContext represents the environment of the
+    analysis. Most importantly this means for a given store
+    and pandas index value, Ramp will consider the data immutable --
+    it will not check the data again to see if it has changed.
     """
     def __init__(self, store, data=None, train_index=None, prep_index=None):
         """
-        Args:
+        **Args**
 
         store: An instance of `store.Store` or a path. If a path
                 Ramp will default to an `HDFPickleStore` at that path
-                if py-tables is installed, a `PickleStore` otherwise.
+                if PyTables is installed, a `PickleStore` otherwise.
         data: a pandas DataFrame. If all data has been precomputed this
                 may not be required.
         train_index: a pandas Index specifying the data instances to be

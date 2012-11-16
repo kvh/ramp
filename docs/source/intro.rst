@@ -12,7 +12,7 @@ Minimum requirements:
  * Scikit-learn
 
 Recommended packages:
- * Py-tables (for fast persistence)
+ * PyTables (for fast persistence)
  * nltk (for various text features)
  * Gensim (for topic modeling)
     
@@ -27,6 +27,7 @@ or::
 
 Basic Usage
 -----------
+
 See `Getting started with Ramp: Detecting Insults <http://www.kenvanharen.com/2012/11/getting-started-with-ramp-detecting.html>`_
 
 

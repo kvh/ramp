@@ -1,5 +1,5 @@
 Configurations
 ==============
 
-.. autoclass:: ramp.configuration.Configuration
+.. automodule:: ramp.configuration
     :members:

@@ -16,13 +16,17 @@ __all__ = ['DummyStore', 'MemoryStore', 'PickleStore', 'HDFPickleStore']
 
 
 def dumppickle(obj, fname, protocol=-1):
-    """Pickle object `obj` to file `fname`."""
+    """
+    Pickle object `obj` to file `fname`.
+    """
     with open(fname, 'wb') as fout: # 'b' for binary, needed on Windows
         pickle.dump(obj, fout, protocol=protocol)
 
 
 def loadpickle(fname):
-    """Load pickled object from `fname`"""
+    """
+    Load pickled object from `fname`
+    """
     return pickle.load(open(fname, 'rb'))
 
 
@@ -33,6 +37,10 @@ class DummyStore(object):
 
 
 class Store(object):
+    """
+    ABC for Store classes. Inheriting classes
+    should override get and put methods.
+    """
     def __init__(self, path=None, verbose=False):
         self.path = path
         self._shelf = None
@@ -72,14 +80,18 @@ class Store(object):
 
 
 class MemoryStore(Store):
-
+    """
+    Caches values in-memory, no persistence.
+    """
     def put(self, key, value): pass
     def get(self, key): raise KeyError
 
 
 re_file = re.compile(r'\W+')
 class PickleStore(Store):
-
+    """
+    Pickles values to disk and caches in memory.
+    """
     def safe_name(self, key):
         key_name = re_file.sub('_', key)
         return '_%s__%s' % (hashlib.md5(key).hexdigest()[:10], key_name[:100])
@@ -99,8 +111,8 @@ class PickleStore(Store):
 
 class HDFPickleStore(PickleStore):
     """
-    Attempts to store objects in HDF5 format (best numpy/pandas objects). Pickles them
-    to disk as a fall back.
+    Attempts to store objects in HDF5 format (numpy/pandas objects). Pickles them
+    to disk if that's not possible; also caches values in-memory.
     """
     def get_store(self):
         return pandas.HDFStore(os.path.join(self.path, 'ramp.h5'))
@@ -120,7 +132,9 @@ class HDFPickleStore(PickleStore):
 
 
 class ShelfStore(Store):
-
+    """
+    Deprecated
+    """
     def get_store(self):
         if self._shelf is None:
             self._shelf = shelve.open(self.path)
@@ -149,6 +163,6 @@ try:
     default_store = HDFPickleStore
 except NameError:
     print "Defaulting to basic pickle store. It is recommended \
-          you install py-tables for fast HDF5 format."
+          you install PyTables for fast HDF5 format."
     default_store = PickleStore
 

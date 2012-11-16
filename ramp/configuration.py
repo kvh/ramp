@@ -17,7 +17,7 @@ class Configuration(object):
             reporters=None, column_subset=None, prediction=None, predictions_name=None,
             actual=None):
         """
-        Args:
+        **Args**
 
         target: `Feature` or basestring specifying the target ("y") variable of the analysis.
 
@@ -116,7 +116,7 @@ class ConfigFactory(object):
 
     def __init__(self, base_config, **kwargs):
         """
-        Args:
+        **Args**
 
         base_config: The base `Configuration` to augment
 
