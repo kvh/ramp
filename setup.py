@@ -19,6 +19,7 @@ setup(name='ramp',
       install_requires=[
           'numpy',
           'pandas',
+          'scikit-learn',
       ]
       )
 
