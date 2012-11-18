@@ -39,7 +39,7 @@ transformations, metrics, feature selectors, reporters, or estimators.
 
 
 ## Quick example
-[Getting started with Ramp: Classifying insults](http://kenvanharen.com/)
+[Getting started with Ramp: Classifying insults](http://www.kenvanharen.com/2012/11/getting-started-with-ramp-detecting.html)
 
 ## Status
 Ramp is very alpha currently, so expect bugs, bug fixes and API changes.
