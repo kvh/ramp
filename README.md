@@ -1,5 +1,5 @@
 Ramp - Rapid Machine Learning Prototyping
-========
+=========================================
 
 Ramp is a python module for rapid prototyping of machine learning
 solutions. It is essentially a [pandas](http://pandas.pydata.org)
