@@ -11,31 +11,38 @@ efficiently.
 
 Documentation: http://ramp.readthedocs.org
 
-## Complex feature transformations
-Chain and combine features:
+**Why Ramp?**
 
-    Normalize(Log('x'))
-    Interactions([Log('x1'), (F('x2') + F('x3')) / 2])
+ *  **Complex feature transformations**
 
-Reduce feature dimension:
+    Chain and combine features:
 
-    SVDDimensionReduction([F('x%d'%i) for i in range(100)], n_keep=20)
+        Normalize(Log('x'))
+        Interactions([Log('x1'), (F('x2') + F('x3')) / 2])
 
-Incorporate residuals or predictions to blend with other models:
+    Reduce feature dimension:
 
-    Residuals(config_model1) + Predictions(config_model2)
-Any feature that uses the target ("y") variable will automatically respect the
-current training and test sets.
+        SVDDimensionReduction([F('x%d'%i) for i in range(100)], n_keep=20)
 
-## Caching
-Ramp caches and stores on disk in fast HDF5 format (or elsewhere if you want) all features and models it
-computes, so nothing is recomputed unnecessarily. Results are stored 
-and can be retrieved, compared, blended, and reused between runs.
+    Incorporate residuals or predictions to blend with other models:
 
-## Easy extensibility
-Ramp has a simple API, allowing you to plug in estimators from
-scikit-learn, rpy2 and elsewhere, or easily build your own feature
-transformations, metrics, feature selectors, reporters, or estimators.
+        Residuals(config_model1) + Predictions(config_model2)
+
+    Any feature that uses the target ("y") variable will automatically respect the
+    current training and test sets.
+
+
+ *  **Caching**
+
+    Ramp caches and stores on disk in fast HDF5 format (or elsewhere if you want) all features and models it
+    computes, so nothing is recomputed unnecessarily. Results are stored 
+    and can be retrieved, compared, blended, and reused between runs.
+
+ *  **Easy extensibility**
+
+    Ramp has a simple API, allowing you to plug in estimators from
+    scikit-learn, rpy2 and elsewhere, or easily build your own feature
+    transformations, metrics, feature selectors, reporters, or estimators.
 
 
 ## Quick example
