@@ -22,7 +22,7 @@ Documentation: http://ramp.readthedocs.org
 
     Reduce feature dimension:
 
-        SVDDimensionReduction([F('x%d'%i) for i in range(100)], n_keep=20)
+        DimensionReduction([F('x%d'%i) for i in range(100)], decomposer=PCA(n_components=3))
 
     Incorporate residuals or predictions to blend with other models:
 

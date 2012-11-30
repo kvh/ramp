@@ -11,6 +11,7 @@ import pandas
 import tempfile
 
 from sklearn import linear_model
+from sklearn import decomposition
 import numpy as np
 import os, sys
 
@@ -204,6 +205,23 @@ class TestGroupFeatures(unittest.TestCase):
         expected[self.data['groups']] = g1_mean
         expected[-self.data['groups']] = g2_mean
         assert_almost_equal(data, expected)
+
+
+class TestDimReduction(unittest.TestCase):
+    def setUp(self):
+        self.data = make_data(10)
+        self.ctx = context.DataContext(data=self.data)
+
+    def test_pca_dimred(self):
+        decomposer = decomposition.PCA(n_components=2)
+        f = combo.DimensionReduction(['a', 'b', 'c'],
+                decomposer=decomposer)
+        data = f.create(self.ctx)
+        self.assertEqual(data.shape, (len(self.data), 2))
+        decomposer = decomposition.PCA(n_components=2)
+        expected = decomposer.fit_transform(self.data[['a', 'b', 'c']])
+        assert_almost_equal(expected, data.values)
+
 
 
 if __name__ == '__main__':

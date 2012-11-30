@@ -77,20 +77,21 @@ class OutlierCount(ComboFeature):
         return count
 
 
-from sklearn.decomposition import PCA
-class SVDDimensionReduction(ComboFeature):
-    def __init__(self, feature, pct_keep=1., n_keep=None):
-        super(SVDDimensionReduction, self).__init__(feature)
-        self.pct_keep = pct_keep
-        self.n_keep = n_keep
-        self._name = self._name + '_%s'%(n_keep if n_keep else pct_keep)
+class DimensionReduction(ComboFeature):
+    def __init__(self, feature, decomposer=None):
+        super(DimensionReduction, self).__init__(feature)
+        self.decomposer = decomposer
+
+    def _prepare(self, data):
+        self.decomposer.fit(data.values)
+        return {'decomposer': self.decomposer}
 
     def combine(self, datas):
         data = concat(datas, axis=1)
-        nvecs = self.n_keep if self.n_keep else int(self.pct_keep * len(data.columns))
-        pca = PCA(n_components=nvecs)
-        x = pca.fit_transform(data.values)
-        df = DataFrame(x, columns=['Vector%d'%i for i in range(nvecs)],
-                index=data.index)
+        decomposer = self.get_prep_data(data)['decomposer']
+        decomp = decomposer.transform(data)
+        df = DataFrame(decomp,
+                    columns=['Vector%d'%i for i in range(decomp.shape[1])],
+                    index=data.index)
         return df
 
