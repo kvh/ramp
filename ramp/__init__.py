@@ -6,4 +6,5 @@ from store import *
 import metrics
 import reporters
 import selectors
+import shortcuts
 
