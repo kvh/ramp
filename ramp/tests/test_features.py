@@ -178,6 +178,34 @@ class TestTrainedFeature(unittest.TestCase):
         assert_almost_equal(est.predictx[2].transpose()[0], self.data['a'].values[8:])
 
 
+class TestGroupFeatures(unittest.TestCase):
+    def setUp(self):
+        self.data = make_data(10)
+        self.data['groups'] = self.data['ints'].apply(lambda x: x > 5)
+        self.ctx = context.DataContext(store.MemoryStore(verbose=True), self.data)
+
+    def test_group_agg_col(self):
+        f = GroupAggregate(['a', 'groups'], function=np.mean, data_column='a',
+                groupby_column='groups')
+        f.context = self.ctx
+
+        # test prep data
+        prep = f.get_prep_data(self.data)
+        self.assertEqual(len(prep), 2)
+        self.assertAlmostEqual(prep['global'], self.data['a'].mean())
+        g1_mean = self.data['a'][self.data['groups']].mean()
+        g2_mean = self.data['a'][-self.data['groups']].mean()
+        self.assertAlmostEqual(prep['groups'].get(True), g1_mean)
+        self.assertAlmostEqual(prep['groups'].get(False), g2_mean)
+
+        # test feature creation
+        data = get_single_column(f.create(self.ctx))
+        expected = Series(index=data.index)
+        expected[self.data['groups']] = g1_mean
+        expected[-self.data['groups']] = g2_mean
+        assert_almost_equal(data, expected)
+
+
 if __name__ == '__main__':
     unittest.main()
 

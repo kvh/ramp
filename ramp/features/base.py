@@ -426,9 +426,10 @@ class AsFactorIndicators(Feature):
 
     def _create(self, data):
         factors = self.get_prep_data(data)
+        data = get_single_column(data)
         d = DataFrame(index=data.index)
         for f in list(factors)[:-1]:
-            d['%s-%s'%(f, col)] = data[col].map(lambda x: int(x == f))
+            d['%s-%s'%(f, data.name)] = data.map(lambda x: int(x == f))
         return d
 
 
@@ -470,10 +471,10 @@ class GroupMap(Feature):
     """
     Applies a function over specific sub-groups of the data
     Typically this will be with a MultiIndex (hierarchical index).
+    If group is encountered that has not been seen, defaults to
+    global map.
     TODO: prep this feature
     """
-
-    #TODO: can we "prep" this??
 
     def __init__(self, feature, function, name=None, **groupargs):
         super(GroupMap, self).__init__(feature)
@@ -485,11 +486,57 @@ class GroupMap(Feature):
         self.groupargs = groupargs
 
     def _create(self, data):
-        try:
-            d = data.groupby(**self.groupargs).apply(self.function)
-            return d
-        except ValueError:
-            return data.apply(self.function)
+        d = data.groupby(**self.groupargs).applymap(self.function)
+        return d
+
+
+class GroupAggregate(ComboFeature):
+    """
+    Computes an aggregate value by group.
+
+    Groups can be specified with kw args which will be
+    passed to the pandas `groupby` method, or by
+    specifying a `groupby_column` which will group by value
+    of that column.
+    """
+    def __init__(self, features, function, name=None, data_column=None,
+            trained=False, groupby_column=None, **groupargs):
+        super(GroupAggregate, self).__init__(features)
+        self.function = function
+        self.data_column = data_column
+        self.trained = trained
+        self.groupby_column = groupby_column
+        self._name = name or function.__name__
+        self.groupargs = groupargs
+
+    def depends_on_y(self):
+        return self.trained or super(GroupAggregate, self).depends_on_y()
+
+    def _prepare(self, data):
+        prep = {}
+        # global value
+        prep['global'] = self.function(data[self.data_column])
+        # group specific
+        if self.groupby_column:
+            g = data.groupby(by=self.groupby_column, **self.groupargs)
+        else:
+            g = data.groupby(**self.groupargs)
+        d = g[self.data_column].apply(self.function)
+        prep['groups'] = d
+        return prep
+
+    def _create(self, datas):
+        data = concat(datas, axis=1)
+        prep = self.get_prep_data(data)
+        globl = prep['global']
+        groups = prep['groups']
+        if self.groupby_column:
+            data = DataFrame(data[self.groupby_column].apply(lambda x: groups.get(x, globl)))
+        else:
+            data = DataFrame([groups.get(x, globl) for x in data.index],
+                    columns=[self.data_column],
+                    index=data.index)
+        return data
 
 
 def contain(x, mn, mx):
