@@ -1,7 +1,7 @@
 from hashlib import md5
 import copy
 from utils import get_np_hashable
-from store import HDFPickleStore, Store, default_store
+from store import HDFPickleStore, MemoryStore, Store, default_store
 
 __all__ = ['DataContext']
 
@@ -14,13 +14,14 @@ class DataContext(object):
     and pandas index value, Ramp will consider the data immutable --
     it will not check the data again to see if it has changed.
     """
-    def __init__(self, store, data=None, train_index=None, prep_index=None):
+    def __init__(self, store=None, data=None, train_index=None, prep_index=None):
         """
         **Args**
 
         store: An instance of `store.Store` or a path. If a path
                 Ramp will default to an `HDFPickleStore` at that path
                 if PyTables is installed, a `PickleStore` otherwise.
+                Defaults to MemoryStore.
         data: a pandas DataFrame. If all data has been precomputed this
                 may not be required.
         train_index: a pandas Index specifying the data instances to be
@@ -30,7 +31,10 @@ class DataContext(object):
                 used in prepping ("x" values). Stored results will be cached against this.
                 If not provided, the entire index of `data` will be used.
         """
-        self.store = store if isinstance(store, Store) else default_store(store)
+        if store is None:
+            self.store = MemoryStore()
+        else:
+            self.store = store if isinstance(store, Store) else default_store(store)
         self.data = data
         self.train_index = train_index if train_index is not None else self.data.index if self.data is not None else None
         self.prep_index = prep_index if prep_index is not None else self.data.index if self.data is not None else None
