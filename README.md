@@ -16,18 +16,18 @@ Documentation: http://ramp.readthedocs.org
  *  **Complex feature transformations**
 
     Chain and combine features:
-
-        Normalize(Log('x'))
-        Interactions([Log('x1'), (F('x2') + F('x3')) / 2])
-
+```python
+Normalize(Log('x'))
+Interactions([Log('x1'), (F('x2') + F('x3')) / 2])
+```
     Reduce feature dimension:
-
-        DimensionReduction([F('x%d'%i) for i in range(100)], decomposer=PCA(n_components=3))
-
+```python
+DimensionReduction([F('x%d'%i) for i in range(100)], decomposer=PCA(n_components=3))
+```
     Incorporate residuals or predictions to blend with other models:
-
-        Residuals(config_model1) + Predictions(config_model2)
-
+```python
+Residuals(config_model1) + Predictions(config_model2)
+```
     Any feature that uses the target ("y") variable will automatically respect the
     current training and test sets.
 
