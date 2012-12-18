@@ -274,11 +274,18 @@ class SelectNgramCounts(NgramCounts):
         return data[cols]
 
 
+try:
+    treebank_tokenizer = nltk.tokenize.treebank.TreebankWordTokenizer()
+except NameError:
+    treebank_tokenizer = None
+
 class TreebankTokenize(Feature):
 
-    tokenizer = nltk.tokenize.treebank.TreebankWordTokenizer()
+    tokenizer = treebank_tokenizer
 
     def _create(self, data):
+        if not self.tokenizer:
+            raise NameError("TreebankTokenize requires nltk to be installed")
         return data.applymap(self.tokenizer.tokenize)
 
 
