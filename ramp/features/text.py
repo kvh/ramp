@@ -236,7 +236,8 @@ class NgramCounts(Feature):
 
 
 class SelectNgramCounts(NgramCounts):
-    # TODO: make this a generic pre-selector (so intermediate isn't cached)
+    # TODO: make this a generic pre-selector (so intermediate isn't cached). Is
+    # this even possible?
     def __init__(self, feature, selector, target, n_keep=50, train_only=False, *args, **kwargs):
         # this needs work...
         raise NotImplementedError
