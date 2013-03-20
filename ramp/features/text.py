@@ -3,7 +3,8 @@ from ..selectors import LassoPathSelector
 try:
     import gensim
 except ImportError:
-    pass
+    print ('This requires the gensim module:'
+           'http://radimrehurek.com/gensim/index.html')
 from ..utils import bag_of_words, cosine, tokenize, tokenize_keep_all, tokenize_with_sentinels
 from pandas import DataFrame, read_csv, concat, Series
 import hashlib

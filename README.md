@@ -137,6 +137,7 @@ Ramp is very alpha currently, so expect bugs, bug fixes and API changes.
  * Pandas
  * PyTables
  * Sci-kit Learn
+ * gensim
 
 ## Author
 Ken Van Haren. Email with feedback/questions: kvh@science.io [@squaredloss](http://twitter.com/squaredloss)
