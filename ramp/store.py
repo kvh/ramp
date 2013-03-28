@@ -3,8 +3,12 @@
 Store
 -------
 
-Data storage classes. Default behavior is to write to HDF5, otherwise
-defaults to pickle storage.
+Data storage classes. The default behavior for this module will always attempt
+to read/write from HDF storage first, and will fall back to pickle storage if
+required. 
+
+This module uses the MD5 algorithm to create "safe" unique file names based 
+on provided key values.  
 '''
 
 import pandas
@@ -122,16 +126,20 @@ class PickleStore(Store):
     Pickles values to disk and caches in memory.
     """
     def safe_name(self, key):
+        """Create hex name from key"""
         key_name = re_file.sub('_', key)
         return '_%s__%s' % (hashlib.md5(key).hexdigest()[:10], key_name[:100])
 
     def get_fname(self, key):
+        """Get pickled data path"""
         return os.path.join(self.path, self.safe_name(key))
 
     def put(self, key, value):
+        """Write safe-named data to pickle"""
         dumppickle(value, self.get_fname(key), protocol=0)
 
     def get(self, key):
+        """Load pickled data using key value"""
         try:
             return loadpickle(self.get_fname(key))
         except IOError:
@@ -144,16 +152,20 @@ class HDFPickleStore(PickleStore):
     to disk if that's not possible; also caches values in-memory.
     """
     def get_store(self):
-        """Load data from HDF5 store on path"""
+        """HDF store on self.path"""
         return pandas.HDFStore(os.path.join(self.path, 'ramp.h5'))
 
     def put(self, key, value):
+        """Write Pandas DataFrame or Series to HDF store. Other data types
+        will default to pickled storage"""
         if isinstance(value, pandas.DataFrame) or isinstance(value, pandas.Series):
             self.get_store()[self.safe_name(key)] = value
         else:
             super(HDFPickleStore, self).put(key, value)
 
     def get(self, key):
+        """Get data from HDF store. If store does not contain key or data, 
+        will try to load pickled data."""
         try:
             return self.get_store()[self.safe_name(key)]
         except (KeyError, NoSuchNodeError):

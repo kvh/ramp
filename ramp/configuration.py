@@ -1,3 +1,18 @@
+﻿  # -*- coding: utf-8 -*-
+'''
+Configuration
+-------
+
+A configuration is a uniquely defined data analysis model, including 
+features, estimator, and target metric. Configurations can be pickled
+and retrieved. 
+
+The ConfigFactory is at the core of the power of Ramp. It creates an iterator
+that allows for the exploration of a large number of features, models, and
+metrics
+
+'''
+
 from features.base import BaseFeature, Feature
 from utils import _pprint, stable_repr
 import copy
@@ -14,46 +29,79 @@ class Configuration(object):
     DEFAULT_PREDICTIONS_NAME = '$predictions'
 
     def __init__(self, target=None, features=None, model=None, metrics=None,
-            reporters=None, column_subset=None, prediction=None, predictions_name=None,
-            actual=None):
+                 reporters=None, column_subset=None, prediction=None, 
+                 predictions_name=None, actual=None):
         """
-        **Args**
+        Parameters:
+        ___________
 
-        target: `Feature` or basestring specifying the target ("y") variable of the analysis.
+        target: `Feature` or string, default None
+            `Feature` or basestring specifying the target ("y") variable of 
+            the analysis.
 
-        features: an iterable of `Features <Feature>` to be used by the estimator in the analysis.
+        features: `Feature`, default None
+            An iterable of `Features <Feature>` to be used by the estimator 
+            in the analysis.
 
-        model: an estimator instance compatible with sklearn estimator conventions. (has fit(x, y) and predict(y) methods).
+        model: estimator (compatible with sklearn estimators), default None
+            An estimator instance compatible with sklearn estimator 
+            conventions: Has fit(x, y) and predict(y) methods.
 
-        metrics: an iterable of evaluation `Metric`s used to score predictions.
+        metrics: ramp.metrics `Metric` object, default None
+            An iterable of evaluation `Metric`s used to score predictions.
 
-        reporters: an iterable of `Reporter` objects
+        reporters: ramp.reporters `Reporter` object, default None
+            An iterable of `Reporter` objects
 
-        prediction: a `Feature` transformation of the special `predictions_name` column used to post-process predictions prior to metric scoring.
+        predictions_name: string, default None
+            A unique string used as a column identifier for model predictions. 
+            Must be unique among all feature names: eg '$logreg_predictions$'
+            
+        prediction: `Feature`, default None
+            A `Feature` transformation of the special `predictions_name` 
+            column used to post-process predictions prior to metric scoring.
 
-        predictions_name: a unique string used as a column identifier for model predictions. Must be unique among all feature names: eg '$logreg_predictions$'
-
-        actual: a `Feature`. Used if `target` represents a transformation that is NOT the actual target "y" values. Used in conjuction with
-                    `prediction` to allow model training, predictions and scoring to operate on different values.
+        actual: `Feature`, default None
+            `Feature`. Used if `target` represents a transformation that is 
+            NOT the actual target "y" values. Used in conjuction with 
+            `prediction` to allow model training, predictions and scoring to 
+            operate on different values.
         """
         self.set_attrs(target, features, metrics, model,
-                column_subset, prediction, predictions_name, actual, reporters)
+                       column_subset, prediction, predictions_name, 
+                       actual, reporters)
 
     def set_attrs(self, target=None, features=None, metrics=None, model=None,
-            column_subset=None, prediction=None,
-            predictions_name=None, actual=None, reporters=None):
+                  column_subset=None, prediction=None,
+                  predictions_name=None, actual=None, reporters=None):
+            
         if prediction is not None:
             if predictions_name is None:
                 raise ValueError("If you provide a prediction feature, you "
                 "must also specify a _unique_ 'predictions_name'")
-        self.target = target if isinstance(target, BaseFeature) or target is None else Feature(target)
-        self.prediction = prediction if isinstance(prediction, BaseFeature) or prediction is None else Feature(prediction)
+                
+        if isinstance(target, BaseFeature) or target is None: 
+            self.target = target
+        else: 
+            self.target = Feature(target)                
+
+        if isinstance(prediction, BaseFeature) or prediction is None: 
+            self.prediction = prediction
+        else: 
+            self.prediction = Feature(prediction)          
         self.predictions_name = predictions_name
+        
         if actual is None:
             actual = self.target
-        self.actual = actual if isinstance(actual, BaseFeature) else Feature(actual)
-        self.features = [f if isinstance(f, BaseFeature) else Feature(f) for f
-                in features] if features else None
+        self.actual = (actual if isinstance(actual, BaseFeature) 
+                       else Feature(actual))
+        
+        if features: 
+            self.features = ([f if isinstance(f, BaseFeature) else Feature(f)
+                              for f in features])
+        else: 
+            self.features = None
+            
         self.metrics = metrics or []
         self.model = model
         self.column_subset = column_subset
@@ -78,6 +126,8 @@ class Configuration(object):
         )
 
     def update(self, dct):
+        """Update your configuration with new parameters. Must use same 
+        kwargs as __init__"""
         d = self.__dict__.copy()
         d.update(dct)
         self.set_attrs(**d)
