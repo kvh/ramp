@@ -1,9 +1,9 @@
-  # -*- coding: utf-8 -*-
+﻿  # -*- coding: utf-8 -*-
 '''
 DataContext
 -------
 
-The environment of the analysis. 
+The environment of the analysis.
 
 '''
 
@@ -16,76 +16,71 @@ __all__ = ['DataContext']
 
 
 class DataContext(object):
-    """
-    All Ramp analyses require a DataContext.
-    A DataContext represents the environment of the
-    analysis. Most importantly this means for a given store
-    and pandas index value, Ramp will consider the data immutable --
-    it will not check the data again to see if it has changed.
-    """
-    def __init__(self, store=None, data=None, train_index=None, 
+
+    def __init__(self, store=None, data=None, train_index=None,
                  prep_index=None):
         """
         The DataContext is the data storage environment for the Ramp analysis.
-        For a given store and pandas index value, Ramp will consider the data 
-        immutable, and will not check for changes in the data. 
-        
-        Parameters: 
+        For a given store and pandas index value, Ramp will consider the data
+        immutable, and will not check for changes in the data.
+
+        Parameters:
         -----------
 
-        store: string or store.Store, default None
-            An instance of `store.Store` or a path. If a path, Ramp will 
-            default to an `HDFPickleStore` at that path if PyTables is 
+        store: string or ramp.store.Store, default None
+            An instance of `ramp.store.Store` or a path. If a path, Ramp will
+            default to an `HDFPickleStore` at that path if PyTables is
             installed, a `PickleStore` otherwise. Defaults to MemoryStore.
         data: Pandas DataFrame, default None
             Dataframe of data. If all data has been precomputed this
             may not be required.
         train_index: Pandas DataFrame Index, default None
-            Pandas Index specifying the data instances to be used in training. 
-            Stored results will be cached against this.If not provided, the 
+            Pandas Index specifying the data instances to be used in training.
+            Stored results will be cached against this.If not provided, the
             entire index of the 'data' parameter will be used.
         prep_index: Pandas DataFrame Index, default None
             Pandas Index specifying the data instances to be
-            used in prepping ("x" values). Stored results will be cached 
-            against this. If not provided, the entire index of `data` 
+            used in prepping ("x" values). Stored results will be cached
+            against this. If not provided, the entire index of `data`
             keyword arg will be used.
-            
         """
         if store is None:
             self.store = MemoryStore()
         else:
-            self.store = store if isinstance(store, Store) else default_store(store)
+            self.store = (store if isinstance(store, Store)
+                          else default_store(store))
         self.data = data
-        if train_index:
+        if train_index is not None:
             self.train_index = train_index
-        elif self.data: 
+        elif self.data is not None:
             self.train_index = self.data.index
-        else: 
+        else:
             self.train_index = None
-        
-        if prep_index: 
+
+        if prep_index is not None:
             self.prep_index = prep_index
-        elif self.data: 
-            self.prep_index = prep_index
-        else: 
+        elif self.data is not None:
+            self.prep_index = self.data.index
+        else:
             self.prep_index = None
 
     def copy(self):
+        """Make a shallow copy of the DataContext"""
         return copy.copy(self)
 
     def create_key(self):
+        """Create hex key using MD5 algorithm."""
         return md5('%s--%s' % (get_np_hashable(self.train_index),
-            get_np_hashable(self.prep_index))).hexdigest()
+                   get_np_hashable(self.prep_index))).hexdigest()
 
     def save_context(self, name, config=None):
         """
         Saves this context (specifically it's train and prep indices)
-        to it's store with the given
-        name, along with the config, if provided.
+        to it's store with the given name, along with the config, if provided.
         """
-        ctx = {'train_index':self.train_index,
-                'prep_index':self.prep_index,
-                'config':config}
+        ctx = {'train_index': self.train_index,
+               'prep_index': self.prep_index,
+               'config': config}
         self.store.save('context__%s' % name, ctx)
 
     def load_context(self, name):

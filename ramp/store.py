@@ -1,3 +1,12 @@
+﻿  # -*- coding: utf-8 -*-
+'''
+Store
+-------
+
+Data storage classes. Default behavior is to write to HDF5, otherwise
+defaults to pickle storage.
+'''
+
 import pandas
 try:
     import tables
@@ -19,7 +28,7 @@ def dumppickle(obj, fname, protocol=-1):
     """
     Pickle object `obj` to file `fname`.
     """
-    with open(fname, 'wb') as fout: # 'b' for binary, needed on Windows
+    with open(fname, 'wb') as fout:  # 'b' for binary, needed on Windows
         pickle.dump(obj, fout, protocol=protocol)
 
 
@@ -31,17 +40,29 @@ def loadpickle(fname):
 
 
 class DummyStore(object):
-    def save(self, k, v): pass
-    def load(self, k): raise KeyError
-    def delete(self, kp): pass
+    def save(self, k, v):
+        pass
+    def load(self, k):
+        raise KeyError
+    def delete(self, kp):
+        pass
 
 
 class Store(object):
-    """
-    ABC for Store classes. Inheriting classes
-    should override get and put methods.
-    """
+
     def __init__(self, path=None, verbose=False):
+        """
+        ABC for Store classes. Inheriting classes should override get
+        and put methods. Currently subclasses for HDF5 and cPickle, but 
+        extendable for other data storage types.
+        
+        Parameters: 
+        -----------
+        path: string, default None
+            Path to data folder
+        verbose: bool, default False
+            Set 'True' to print read/write messages
+        """
         self.path = path
         self._shelf = None
         self._uncachables = set()
@@ -49,10 +70,14 @@ class Store(object):
         self.verbose = verbose
 
     def register_uncachable(self, un):
-        """ any key containing the substring `un` will NOT be cached """
+        """Any key containing the substring `un` will NOT be cached """
         self._uncachables.add(un)
 
     def load(self, key):
+        """
+        Loads from cache, otherwise defaults to class 'get' method to load
+        from store. 
+        """
         try:
             v = self._cache[key]
             if self.verbose:
@@ -65,6 +90,10 @@ class Store(object):
             return v
 
     def save(self, key, value):
+        """
+        Saves to cache, otherwise defaults to class 'put' method to load
+        from store
+        """
         for un in self._uncachables:
             if un in key:
                 # print "not caching", key
@@ -81,7 +110,7 @@ class Store(object):
 
 class MemoryStore(Store):
     """
-    Caches values in-memory, no persistence.
+    Caches values in-memory, no persistence. 
     """
     def put(self, key, value): pass
     def get(self, key): raise KeyError
@@ -115,6 +144,7 @@ class HDFPickleStore(PickleStore):
     to disk if that's not possible; also caches values in-memory.
     """
     def get_store(self):
+        """Load data from HDF5 store on path"""
         return pandas.HDFStore(os.path.join(self.path, 'ramp.h5'))
 
     def put(self, key, value):
