@@ -1,3 +1,17 @@
+﻿  # -*- coding: utf-8 -*-
+'''
+Metrics
+-------
+
+Estimator performance assessment metrics, both custom and imported from the 
+sklearn library of metrics. Sklearn metric documentation can be found at
+http://scikit-learn.org/stable/modules/model_evaluation.html
+
+Custom metrics/sklearn metrics can be generated/used by subclassing the 
+Metric/SKLearnMetric classes
+
+'''
+
 import math
 import numpy as np
 from sklearn import metrics
@@ -24,7 +38,10 @@ class Metric(object):
         raise NotImplementedError
 
 class SKLearnMetric(Metric):
+    '''SKLearn library metric'''
+    
     metric = None
+    
     def __init__(self, **kwargs):
         self.kwargs = kwargs
 
@@ -34,26 +51,37 @@ class SKLearnMetric(Metric):
 
 # Regression
 class RMSE(Metric):
+    '''Mean Squared Error: The average of the squares of the errors.'''
     def score(self, actual, predicted):
         return sum((actual - predicted)**2)/float(len(actual))
 
 
 # Classification
 class AUC(SKLearnMetric):
+    '''
+    Area Under the Curve (AUC): area under the reciever operating 
+    characteristic (ROS curve)
+    '''
     reverse = True
     metric = staticmethod(auc_scorer)
 
 
 class F1(SKLearnMetric):
+    '''F-measure: Weighted average of the precision and recall'''
     reverse = True
     metric = staticmethod(metrics.f1_score)
 
 
 class HingeLoss(SKLearnMetric):
+    '''Hinge Loss (non-regularized): Classifier loss function'''
     metric = staticmethod(metrics.hinge_loss)
 
 
 class LogLoss(Metric):
+    '''
+    Logarithmic Loss: Logarithm of the likelihood function for a Bernoulli 
+    random distribution. https://www.kaggle.com/wiki/LogarithmicLoss
+    '''
     def score(self, actual, predicted):
         return - sum(actual * np.log(predicted) + (1 - actual) * np.log(1 -
             predicted))/len(actual)

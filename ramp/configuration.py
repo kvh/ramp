@@ -7,9 +7,9 @@ A configuration is a uniquely defined data analysis model, including
 features, estimator, and target metric. Configurations can be pickled
 and retrieved. 
 
-The ConfigFactory is at the core of the power of Ramp. It creates an iterator
-that allows for the exploration of a large number of features, models, and
-metrics
+The ConfigFactory is at the core of the power of Ramp. It creates a 
+configuration iterator that allows for the exploration of a large number 
+of features, models, and metrics
 
 '''
 
@@ -47,10 +47,12 @@ class Configuration(object):
             An estimator instance compatible with sklearn estimator 
             conventions: Has fit(x, y) and predict(y) methods.
 
-        metrics: ramp.metrics `Metric` object, default None
-            An iterable of evaluation `Metric`s used to score predictions.
+        metrics: iterable of ramp.metrics `Metric` objects, default None
+            An iterable of evaluation `Metric`s used to score predictions. 
+            Metrics can be built using SKLearn metrics, or can be custom
+            subclasses of the Ramp Metric class. 
 
-        reporters: ramp.reporters `Reporter` object, default None
+        reporters: iterable of ramp.reporters `Reporter` objects, default None
             An iterable of `Reporter` objects
 
         predictions_name: string, default None
@@ -126,13 +128,23 @@ class Configuration(object):
         )
 
     def update(self, dct):
-        """Update your configuration with new parameters. Must use same 
+        """Update the configuration with new parameters. Must use same 
         kwargs as __init__"""
         d = self.__dict__.copy()
         d.update(dct)
         self.set_attrs(**d)
 
     def match(self, **kwargs):
+        """
+        Check if configuration contains given features, targets, metrics, or 
+        models. Accepts keyword arguments for each. 
+        
+        Ex:
+        >>> my_configuration.match(features=[ramp.Length('Column 1')])
+        >>> my_configuration.match(metrics=ramp.metrics.AUC)
+        >>> my_configuration.match(model=sklearn.svm.LinearSVC())
+        
+        """
         if 'features' in kwargs:
             for f in kwargs['features']:
                 if f.unique_name not in [sf.unique_name for sf in self.features]:
@@ -152,7 +164,8 @@ class Configuration(object):
         for reporter in self.reporters:
             reporter.update_with_model(model)
 
-    def update_reporters_with_predictions(self, context, x, actuals, predictions):
+    def update_reporters_with_predictions(self, context, x, actuals, 
+                                          predictions):
         for reporter in self.reporters:
             reporter.update_with_predictions(context, x, actuals, predictions)
 
@@ -166,11 +179,15 @@ class ConfigFactory(object):
 
     def __init__(self, base_config, **kwargs):
         """
-        **Args**
+        Parameters:
+        ___________
 
-        base_config: The base `Configuration` to augment
+        base_config: 
+            The base `Configuration` to augment
 
-        kwargs: Can be any keyword accepted by `Configuration`. Values should be iterables.
+        kwargs: 
+            Can be any keyword accepted by `Configuration`. 
+            Values should be iterables.
         """
         self.config = base_config
         self.kwargs = kwargs
