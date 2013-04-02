@@ -120,10 +120,14 @@ class Configuration(object):
         return stable_repr(self)
 
     def __str__(self):
+        if self.features is not None: 
+            feature_count = len(self.features)
+        else: 
+            feature_count = 0
         return '%s\n\tmodel: %s\n\t%d features\n\ttarget: %s' % (
             'Configuration',
             self.model,
-            len(self.features),
+            feature_count, 
             self.target
         )
 
