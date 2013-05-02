@@ -35,7 +35,7 @@ class SKLearnMetric(Metric):
 # Regression
 class RMSE(Metric):
     def score(self, actual, predicted):
-        return sum((actual - predicted)**2)/float(len(actual))
+        return math.sqrt(sum((actual - predicted)**2)/float(len(actual)))
 
 
 # Classification
