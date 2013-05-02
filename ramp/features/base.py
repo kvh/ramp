@@ -467,6 +467,24 @@ class Power(Feature):
         return data.applymap(lambda x: x ** self.power)
 
 
+class Lag(Feature):
+    """
+    Lags given feature by n along index.
+    """
+    def __init__(self, feature, lag=1, fill=0):
+        self.lag = lag
+        self.fill = fill
+        super(Lag, self).__init__(feature)
+
+    def _create(self, data):
+        cols = []
+        for col in data.columns:
+            cols.append(Series([self.fill] * self.lag + list(data[col][:-self.lag]),
+                            index=data.index))
+        return concat(cols, keys=data.columns, axis=1)
+
+
+
 class GroupMap(Feature):
     """
     Applies a function over specific sub-groups of the data

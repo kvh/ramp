@@ -18,6 +18,14 @@ class ModelOutliers(Reporter):
     pass
 
 
+class LargestErrors(Reporter):
+
+    def update_with_predictions(self, context, x, actuals, predictions):
+        err = [(abs(actuals[i] - predictions[i]), actuals[i], predictions[i], i) for i in actuals.index]
+        err.sort(reverse=True)
+        print err[:50]
+
+
 class ConfusionMatrix(Reporter):
 
     def update_with_predictions(self, context, x, actuals, predictions):

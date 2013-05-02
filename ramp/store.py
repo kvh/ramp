@@ -30,12 +30,6 @@ def loadpickle(fname):
     return pickle.load(open(fname, 'rb'))
 
 
-class DummyStore(object):
-    def save(self, k, v): pass
-    def load(self, k): raise KeyError
-    def delete(self, kp): pass
-
-
 class Store(object):
     """
     ABC for Store classes. Inheriting classes
@@ -77,6 +71,12 @@ class Store(object):
 
     def put(self, key, value):
         raise NotImplementedError
+
+
+class DummyStore(Store):
+    def save(self, k, v): pass
+    def load(self, k): raise KeyError
+    def delete(self, kp): pass
 
 
 class MemoryStore(Store):

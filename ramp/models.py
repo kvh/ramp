@@ -1,4 +1,4 @@
-from utils import make_folds, _pprint
+from utils import make_folds, make_sequence_folds, _pprint
 from pandas import Series, concat, DataFrame
 import random
 import hashlib
@@ -90,7 +90,6 @@ def predict(config, context, predict_index, fit_model=True):
         preds = Series(ps, index=predict_x.index)
     except:
         preds = DataFrame(ps, index=predict_x.index)
-
     # prediction post-processing
     if config.prediction is not None:
         context.data[config.predictions_name] = preds
@@ -98,6 +97,9 @@ def predict(config, context, predict_index, fit_model=True):
         preds = preds.reindex(predict_x.index)
     preds.name = ''
     return preds, x, y
+
+
+
 
 
 def cv(config, context, folds=5, repeat=2, print_results=False):
@@ -118,6 +120,71 @@ def cv(config, context, folds=5, repeat=2, print_results=False):
         for metric in config.metrics:
             scores[metric.name].append(
                     metric.score(actuals,preds))
+    #if save:
+        #dataset.save_models([(scores, copy.copy(config))])
+    if print_results:
+        print "\n" + str(config)
+        print_scores(scores)
+    return scores
+
+
+def predict_autosequence(config, context, predict_index, fit_model=True, update_column=None):
+    if len(context.train_index & predict_index):
+        print "WARNING: train and predict indices overlap..."
+
+    x, y = None, None
+
+    if fit_model:
+        x, y = fit(config, context)
+
+    if debug:
+        print x.columns
+        print config.model.coef_
+
+    ctx = context.copy()
+    ps = []
+    for i in predict_index:
+        ctx.data = context.data
+        x = get_x(config, ctx)
+        predict_x = x.reindex([i])
+
+        # make actual predictions
+        p = config.model.predict(predict_x.values)
+        if update_column is not None:
+            ctx.data[update_column][i] = p[0]
+        ps.append(p[0])
+    try:
+        preds = Series(ps, index=predict_index)
+    except:
+        preds = DataFrame(ps, index=predict_index)
+    # prediction post-processing
+    if config.prediction is not None:
+        context.data[config.predictions_name] = preds
+        preds = build_target(config.prediction, context)
+        preds = preds.reindex(predict_index)
+    preds.name = ''
+    return preds, x, y
+
+def cv_timeseries(config, context, train_size, update_column=None, print_results=False):
+    scores = dict([(m.name, []) for m in config.metrics])
+    # we are overwriting indices, so make a copy
+    ctx = context.copy()
+    index = context.data.index
+    n = len(index)
+    for i in range(train_size, n):
+        train = index[:i]
+        test = [index[i]]
+        ctx.train_index = train
+        preds, x, y = predict(config, ctx, test)
+        if config.actual is not None:
+            actuals = build_target(config.actual, ctx).reindex(test)
+        else:
+            actuals = y.reindex(test)
+        config.update_reporters_with_predictions(ctx, x, actuals, preds)
+        for metric in config.metrics:
+            scores[metric.name].append(
+                    metric.score(actuals,preds))
+
     #if save:
         #dataset.save_models([(scores, copy.copy(config))])
     if print_results:

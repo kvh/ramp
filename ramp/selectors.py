@@ -217,6 +217,7 @@ class BinaryFeatureSelector(Selector):
         scores.sort(reverse=True)
         return scores
 
+
 class InformationGainSelector(Selector):
     """ Only for binary classification """
 

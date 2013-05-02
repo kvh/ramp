@@ -37,6 +37,14 @@ def make_folds(index, nfolds=5, repeat=1, shuffle=True):
             yield train, test
 
 
+def make_sequence_folds(index, train_size, skip_ahead=1):
+    n = len(index)
+    for i in range(train_size, n, skip_ahead):
+        train = index[:i]
+        test = [index[i]]
+        yield train, test
+
+
 def get_np_hash(obj):
     return md5(get_np_hashable(obj)).hexdigest()
 
