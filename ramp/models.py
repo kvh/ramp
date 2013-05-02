@@ -95,7 +95,7 @@ def predict(config, context, predict_index, fit_model=True):
     if config.prediction is not None:
         context.data[config.predictions_name] = preds
         preds = build_target(config.prediction, context)
-        preds = get_single_column(preds).reindex(predict_x.index)
+        preds = preds.reindex(predict_x.index)
     preds.name = ''
     return preds, x, y
 
@@ -110,7 +110,10 @@ def cv(config, context, folds=5, repeat=2, print_results=False):
     for train, test in folds:
         ctx.train_index = train
         preds, x, y = predict(config, ctx, test)
-        actuals = y.reindex(test)
+        if config.actual is not None:
+            actuals = build_target(config.actual, ctx).reindex(test)
+        else:
+            actuals = y.reindex(test)
         config.update_reporters_with_predictions(ctx, x, actuals, preds)
         for metric in config.metrics:
             scores[metric.name].append(

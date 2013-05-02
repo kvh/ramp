@@ -49,9 +49,10 @@ class Configuration(object):
         self.target = target if isinstance(target, BaseFeature) or target is None else Feature(target)
         self.prediction = prediction if isinstance(prediction, BaseFeature) or prediction is None else Feature(prediction)
         self.predictions_name = predictions_name
-        if actual is None:
-            actual = self.target
-        self.actual = actual if isinstance(actual, BaseFeature) else Feature(actual)
+        if actual is not None:
+            self.actual = actual if isinstance(actual, BaseFeature) else Feature(actual)
+        else:
+            self.actual = None
         self.features = [f if isinstance(f, BaseFeature) else Feature(f) for f
                 in features] if features else None
         self.metrics = metrics or []
