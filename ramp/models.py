@@ -48,8 +48,10 @@ def fit(config, context):
         if debug:
             print "Fitting model '%s'." % (config.model)
 
+        print "Fitting model '%s' ... " % (config.model),
         config.model.fit(train_x.values, train_y.values)
         context.store.save(get_key(config, context), config.model)
+        print "[OK]"
 
     config.update_reporters_with_model(config.model)
 
@@ -84,13 +86,14 @@ def predict(config, context, predict_index, fit_model=True):
 
     predict_x = x.reindex(predict_index)
 
+    print "Making predictions... ",
     # make actual predictions
     ps = config.model.predict(predict_x.values)
     try:
         preds = Series(ps, index=predict_x.index)
     except:
         preds = DataFrame(ps, index=predict_x.index)
-
+    print "[OK]"
     # prediction post-processing
     if config.prediction is not None:
         context.data[config.predictions_name] = preds
@@ -104,10 +107,15 @@ def cv(config, context, folds=5, repeat=2, print_results=False):
     # TODO: too much overloading on folds here
     if isinstance(folds, int):
         folds = make_folds(context.data.index, folds, repeat)
-    scores = dict([(m.name, []) for m in config.metrics])
+    scores = {m.name: [] for m in config.metrics}
     # we are overwriting indices, so make a copy
     ctx = context.copy()
+    i = 0
+    folds = list(folds)
+    k = len(folds)/repeat
     for train, test in folds:
+        print "\nCross-Validation fold %d/%d round %d/%d" % (i % k + 1, k, i/k + 1, repeat)
+        i += 1
         ctx.train_index = train
         preds, x, y = predict(config, ctx, test)
         actuals = y.reindex(test)
@@ -115,12 +123,13 @@ def cv(config, context, folds=5, repeat=2, print_results=False):
         for metric in config.metrics:
             scores[metric.name].append(
                     metric.score(actuals,preds))
+    result = {'config':config, 'scores':scores}
     #if save:
         #dataset.save_models([(scores, copy.copy(config))])
     if print_results:
         print "\n" + str(config)
         print_scores(scores)
-    return scores
+    return result
 
 
 def print_scores(scores_dict):

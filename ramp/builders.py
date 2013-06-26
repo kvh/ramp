@@ -37,11 +37,13 @@ def build_featureset(features, context):
     assert len(features) == len(colnames), "duplicate feature"
     if not features:
         return
+    print "Building %d features... " % len(features),
     x = []
     for feature in features:
         x.append(build_feature_safe(feature, context))
     for d in x[1:]:
         assert (d.index == x[0].index).all(), "Mismatched indices after feature creation"
+    print "[OK]"
     return concat(x, axis=1)
 
 

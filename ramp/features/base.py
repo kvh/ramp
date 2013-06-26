@@ -210,7 +210,7 @@ class ComboFeature(BaseFeature):
         except KeyError:
             if data is None:
                 raise KeyError()
-        print "Prepping '%s'" % self.unique_name
+        #print "Prepping '%s'" % self.unique_name
         prep_data = self._prepare(data.reindex(self.context.prep_index))
         self.context.store.save(self.get_prep_key(), prep_data)
         return prep_data
@@ -232,12 +232,13 @@ class ComboFeature(BaseFeature):
         try:
             if force: raise KeyError
             d = self.context.store.load(self.create_key())
-            print "loading '%s'" % (self.unique_name)
+            #print "loading '%s'" % (self.unique_name)
             #TODO: repeated... use 'with' maybe?
             del self.context
             return d
         except KeyError:
-            print "creating '%s' ..." % (self.unique_name)
+            pass
+            #print "creating '%s' ..." % (self.unique_name)
 
         data = self.create_data(force)
 

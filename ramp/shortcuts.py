@@ -1,6 +1,8 @@
 import models
 from configuration import Configuration, ConfigFactory
 from context import DataContext
+from prettytable import PrettyTable, ALL
+import numpy as np
 
 
 def fit(store=None, data=None, **kwargs):
@@ -41,5 +43,20 @@ def cv_factory(store=None, data=None, **kwargs):
         if arg in kwargs:
             fargs[arg] = kwargs.pop(arg)
     fact = ConfigFactory(Configuration(), **kwargs)
+    results = []
     for conf in fact:
-        models.cv(conf, DataContext(store, data), **fargs)
+        results.append(models.cv(conf, DataContext(store, data), **fargs))
+    t = PrettyTable(["Configuration", "Score"])
+    t.hrules = ALL
+    t.align["Config"] = "l"
+    for r in results:
+        scores_dict = r['scores']
+        s = ""
+        for metric, scores in scores_dict.items():
+            scores = np.array(scores)
+            s += "%s: %0.4f (+/- %0.4f) [%0.4f,%0.4f]\n" % (
+                    metric,
+                    scores.mean(), scores.std(), min(scores),
+                    max(scores))
+        t.add_row([str(r['config']), s])
+    print t

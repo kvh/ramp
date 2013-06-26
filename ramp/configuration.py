@@ -124,8 +124,7 @@ class Configuration(object):
             feature_count = len(self.features)
         else: 
             feature_count = 0
-        return '%s\n\tmodel: %s\n\t%d features\n\ttarget: %s' % (
-            'Configuration',
+        return 'model: %s\nfeatures: %d\ntarget: %s' % (
             self.model,
             feature_count, 
             self.target
