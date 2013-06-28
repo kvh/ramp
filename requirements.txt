@@ -3,3 +3,4 @@ scipy
 pandas
 scikit-learn
 gensim
+prettytable
