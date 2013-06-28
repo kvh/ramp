@@ -55,3 +55,23 @@ class MislabelInspector(Reporter):
                 i = raw_input()
                 if i.startswith('c'):
                     break
+
+
+class RFImportance(ramp.reporters.Reporter):
+    def __init__(self):
+        self.importances = []
+
+    def update_with_model(self, model):
+        try:
+            imps = model.feature_importances_
+        except AttributeError:
+            print "Warning: Model has no feature importances"
+            return
+        print "Feature Importances"
+        print "Rank\tGini\tFeature"
+        imps = sorted(zip(imps, model.column_names),
+                reverse=True)
+        for i, x in enumerate(imps):
+            imp, f = x
+            print '%d\t%0.4f\t%s'%(i+1,imp, f)
+        self.importances.append(imps)

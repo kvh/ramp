@@ -43,6 +43,8 @@ def fit(config, context):
         train_x = x.reindex(context.train_index)
         train_y = y.reindex(context.train_index)
 
+        config.model.column_names = train_x.columns
+
         if debug:
             print train_x
         if debug:
