@@ -32,6 +32,9 @@ class Divide(ComboMap):
 class Multiply(ComboMap):
     def combine(self, datas):
         return self._combine(datas, DataFrame.mul)
+class Sub(ComboMap):
+    def combine(self, datas):
+        return self._combine(datas, DataFrame.sub)
 
 
 class Interactions(ComboFeature):

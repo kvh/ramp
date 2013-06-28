@@ -54,6 +54,9 @@ class BaseFeature(object):
     def __add__(self, other):
         return combo.Add([self, other])
 
+    def __sub__(self, other):
+        return combo.Sub([self, other])
+
     def __div__(self, other):
         return combo.Divide([self, other])
 
