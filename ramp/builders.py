@@ -19,14 +19,14 @@ def build_feature_safe(feature, context):
     # columns probably shouldn't be constant...
     if not isinstance(feature, ConstantFeature):
         if any(d.std() < 1e-9):
-            print "\n\nWARNING: Feature '%s' has constant column. \n\n" % feature.unique_name
+            print "\nWARNING: Feature '%s' has constant column.\n" % feature.unique_name
 
     # we probably dont want NANs here...
     if np.isnan(d.values).any():
         # TODO HACK: this is not right.  (why isn't it right???)
         if not feature.unique_name.startswith(
                 Configuration.DEFAULT_PREDICTIONS_NAME):
-            print "\n\n***** WARNING: NAN in feature '%s' *****\n\n"%feature.unique_name
+            print "\n***** WARNING: NAN in feature '%s' *****\n"%feature.unique_name
 
     return d
 

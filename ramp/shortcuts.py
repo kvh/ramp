@@ -37,6 +37,7 @@ def cv_factory(store=None, data=None, **kwargs):
     All configuration kwargs should be iterables that can be
     passed to a ConfigFactory.
     """
+    cv = kwargs.pop('cv_runner', models.cv)
     fargs = {'print_results':True}
     cvargs = ['folds', 'repeat', 'print_results']
     for arg in cvargs:
@@ -45,7 +46,7 @@ def cv_factory(store=None, data=None, **kwargs):
     fact = ConfigFactory(Configuration(), **kwargs)
     results = []
     for conf in fact:
-        results.append(models.cv(conf, DataContext(store, data), **fargs))
+        results.append(cv(conf, DataContext(store, data), **fargs))
     t = PrettyTable(["Configuration", "Score"])
     t.hrules = ALL
     t.align["Config"] = "l"
