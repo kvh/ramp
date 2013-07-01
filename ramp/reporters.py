@@ -57,7 +57,7 @@ class MislabelInspector(Reporter):
                     break
 
 
-class RFImportance(ramp.reporters.Reporter):
+class RFImportance(Reporter):
     def __init__(self):
         self.importances = []
 
