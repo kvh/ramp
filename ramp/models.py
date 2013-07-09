@@ -6,6 +6,7 @@ import copy
 import numpy as np
 from sklearn import cross_validation, ensemble, linear_model
 from builders import build_featureset, build_target
+from prettytable import PrettyTable, ALL
 
 debug = False
 
@@ -109,6 +110,8 @@ def cv(config, context, folds=5, repeat=2, print_results=False):
     # TODO: too much overloading on folds here
     if isinstance(folds, int):
         folds = make_folds(context.data.index, folds, repeat)
+    else:
+        folds.set_context(config, context)
     scores = {m.name: [] for m in config.metrics}
     # we are overwriting indices, so make a copy
     ctx = context.copy()
@@ -119,6 +122,7 @@ def cv(config, context, folds=5, repeat=2, print_results=False):
         print "\nCross-Validation fold %d/%d round %d/%d" % (i % k + 1, k, i/k + 1, repeat)
         i += 1
         ctx.train_index = train
+        ctx.test_index = test
         preds, x, y = predict(config, ctx, test)
         actuals = y.reindex(test)
         config.update_reporters_with_predictions(ctx, x, actuals, preds)
@@ -126,6 +130,17 @@ def cv(config, context, folds=5, repeat=2, print_results=False):
             scores[metric.name].append(
                     metric.score(actuals,preds))
     result = {'config':config, 'scores':scores}
+
+    # report results
+    t = PrettyTable(["Reporter", "Report"])
+    t.hrules = ALL
+    t.align["Reporter"] = "l"
+    t.align["Report"] = "l"
+    for reporter in config.reporters:
+        t.add_row([reporter.__class__.__name__, reporter.report()])
+        reporter.reset()
+    print t
+    
     #if save:
         #dataset.save_models([(scores, copy.copy(config))])
     if print_results:
