@@ -87,6 +87,14 @@ class LogLoss(Metric):
             predicted))/len(actual)
 
 
+class MCC(SKLearnMetric):
+    """
+    Matthew's Correlation Coefficient.
+    """
+    reverse = True
+    metric = staticmethod(metrics.matthews_corrcoef)
+
+
 class GeneralizedMCC(Metric):
     """ Matthew's Correlation Coefficient generalized to multi-class case """
     def cov(self, c, n, flip=False):
