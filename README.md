@@ -97,11 +97,18 @@ shortcuts.cv_factory(
     data=data,
 
     target=[AsFactor('class')],
-    metrics=[[metrics.GeneralizedMCC()]],
+    metrics=[
+        [metrics.GeneralizedMCC()],
+        ],
+    # report feature importance scores from Random Forest
+    reporters=[
+        [reporters.RFImportance()],
+        ],
 
     # Try out two algorithms
     model=[
-        sklearn.ensemble.RandomForestClassifier(n_estimators=20),
+        sklearn.ensemble.RandomForestClassifier(
+            n_estimators=20, compute_importances=True),
         sklearn.linear_model.LogisticRegression(),
         ],
 
