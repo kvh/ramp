@@ -124,9 +124,10 @@ class Configuration(object):
             feature_count = len(self.features)
         else: 
             feature_count = 0
-        return 'model: %s\nfeatures: %d\ntarget: %s' % (
+        return 'model: %s\nfeatures: %d [%s ...]\ntarget: %s' % (
             self.model,
             feature_count, 
+            ' '.join([str(f) for f in self.features])[:50],
             self.target
         )
 
