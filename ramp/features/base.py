@@ -325,6 +325,42 @@ class FillMissing(Feature):
         return data.fillna(self.fill_value)
 
 
+class MissingIndicatorAndFill(Feature):
+    """
+    Adds a missing indicator column for this feature.
+    Indicator will be 1 if given feature `isnan` (numpy definition), 0 otherwise,
+    and then fill NaNs with `fill_value`.
+    """
+    def __init__(self, feature, fill_value):
+        self.fill_value = fill_value
+        super(MissingIndicatorAndFill, self).__init__(feature)
+
+    def _create(self, data):
+        cols = []
+        names = []
+        for col in data.columns:
+            missing = data[col].map(lambda x: int(np.isnan(x)))
+            names.append( 'missing_%s'%col)
+            cols.append(missing)
+        data = concat([data, concat(cols, keys=names, axis=1)], axis=1)
+        return data.fillna(self.fill_value)
+
+
+class DropConstant(ComboFeature):
+    def _prepare(self, data):
+        dropped_cols = []
+        for col in data.columns:
+            if data[col].std() < 1e-9:
+                dropped_cols.append(col)
+        print "Dropped %d columns", (len(dropped_cols), dropped_cols)
+        return {"dropped_columns": dropped_cols}
+
+    def combine(self, datas):
+        data = concat(datas, axis=1)        
+        cols = self.get_prep_data(data)['dropped_columns']
+        return data.drop(cols, axis=1)
+
+
 class Length(Feature):
     """
     Applies builtin `len` to feature.
@@ -429,12 +465,14 @@ class AsFactorIndicators(Feature):
     """
     Maps nominal values to indicator columns. So
     a column with values ['good', 'fair', 'poor'],
-    would be mapped to two indicator columns (the
+    would be mapped to three indicator columns
+    if include_all is True otherwise two columns (the
     third implied by zeros on the other two columns)
     """
-    def __init__(self, feature, levels=None):
+    def __init__(self, feature, levels=None, include_all=True):
         super(AsFactorIndicators, self).__init__(feature)
         self.levels = levels
+        self.include_all = include_all
 
     def _prepare(self, data):
         levels = self.levels
@@ -446,7 +484,11 @@ class AsFactorIndicators(Feature):
         factors = self.get_prep_data(data)
         data = get_single_column(data)
         d = DataFrame(index=data.index)
-        for f in list(factors)[:-1]:
+        if self.all:
+            facts = list(factors)
+        else:
+            facts = list(factors)[:-1]
+        for f in facts:
             d['%s-%s'%(f, data.name)] = data.map(lambda x: int(x == f))
         return d
 
