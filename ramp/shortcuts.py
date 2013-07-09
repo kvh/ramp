@@ -49,7 +49,7 @@ def cv_factory(store=None, data=None, **kwargs):
         results.append(cv(conf, DataContext(store, data), **fargs))
     t = PrettyTable(["Configuration", "Score"])
     t.hrules = ALL
-    t.align["Config"] = "l"
+    t.align["Configuration"] = "l"
     for r in results:
         scores_dict = r['scores']
         s = ""
