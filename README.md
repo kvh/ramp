@@ -136,7 +136,7 @@ shortcuts.cv_factory(
 ```
 
 ## Status
-Ramp is very alpha currently, so expect bugs, bug fixes and API changes.
+Ramp is alpha currently, so expect bugs, bug fixes and API changes.
 
 ## Requirements
  * Numpy
