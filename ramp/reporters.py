@@ -70,7 +70,8 @@ class MislabelInspector(Reporter):
 
 
 class RFImportance(Reporter):
-    def __init__(self):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
         self.reset()
 
     def reset(self):
@@ -87,7 +88,8 @@ class RFImportance(Reporter):
             return
         imps = sorted(zip(imps, model.column_names),
                 reverse=True)
-        print self.print_string(imps)
+        if self.verbose:
+            print self.print_string(imps)
         self.importances.append(imps)
     
     def print_string(self, imps):
