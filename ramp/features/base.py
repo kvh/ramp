@@ -484,7 +484,7 @@ class AsFactorIndicators(Feature):
         factors = self.get_prep_data(data)
         data = get_single_column(data)
         d = DataFrame(index=data.index)
-        if self.all:
+        if self.include_all:
             facts = list(factors)
         else:
             facts = list(factors)[:-1]
