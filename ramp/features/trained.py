@@ -9,7 +9,8 @@ class Predictions(Feature):
 
     def __init__(self, config, name=None, external_context=None,
             cv_folds=None, cache=False):
-        """ If cv-folds is specified, will use k-fold cross-validation to
+        """
+        If cv-folds is specified, will use k-fold cross-validation to
         provide robust predictions.
         (The predictions returned are those predicted on hold-out sets only.)
         Will not provide overly-optimistic fit like Predictions will, but can
@@ -47,7 +48,7 @@ class Predictions(Feature):
         context.data = data.reindex(context.train_index)
         models.fit(self.config, context)
         context.data = pre_data
-        return
+        return self.config.model
 
     def _create(self, data):
         context = self.get_context()
@@ -60,7 +61,7 @@ class Predictions(Feature):
             for train, test in folds:
                 ctx = context.copy()
                 ctx.train_index = train
-                preds.append(self._predict(ctx, test))
+                preds.append(self._predict(ctx, test, fit_model=True))
             # if there is held-out data, use all of train to predict
             # (these predictions use more data, so will be "better",
             # not sure if that is problematic...)
@@ -73,10 +74,13 @@ class Predictions(Feature):
         preds = DataFrame(preds)
         return preds
 
-    def _predict(self, context, pred_index=None):
+    def _predict(self, context, pred_index=None, fit_model=False):
         if pred_index is None:
             pred_index = context.data.index
-        return models.predict(self.config, context, pred_index)[0]
+        if not fit_model:
+            model = self.get_prep_data(context.data)
+            self.config.model = model
+        return models.predict(self.config, context, pred_index, fit_model=fit_model)[0]
 
 
 class Residuals(Predictions):

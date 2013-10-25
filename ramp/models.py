@@ -32,11 +32,11 @@ def get_key(config, context):
     return '%r-%s' % (config, context.create_key())
 
 
-def fit(config, context):
+def fit(config, context, model_name=None):
     x, y = None, None
     try:
         # model caching
-        config.model = context.store.load(get_key(config, context))
+        config.model = context.store.load(model_name or get_key(config, context))
         print "loading stored model..."
     except KeyError:
         x, y = get_xy(config, context)
@@ -53,21 +53,24 @@ def fit(config, context):
 
         print "Fitting model '%s' ... " % (config.model),
         config.model.fit(train_x.values, train_y.values)
-        context.store.save(get_key(config, context), config.model)
         print "[OK]"
+        context.store.save(model_name or get_key(config, context), config.model)
 
     config.update_reporters_with_model(config.model)
 
     return x, y
 
 
-def predict(config, context, predict_index, fit_model=True):
+def predict(config, context, predict_index, fit_model=True, model_name=None):
     if len(context.train_index & predict_index):
         print "WARNING: train and predict indices overlap..."
 
     x, y = None, None
 
-    if fit_model:
+    if model_name:
+        config.model = context.store.load(model_name)
+
+    if not model_name and fit_model:
         x, y = fit(config, context)
 
     # TODO: possible to have x loaded without new prediction rows
@@ -85,7 +88,6 @@ def predict(config, context, predict_index, fit_model=True):
 
     if debug:
         print x.columns
-        print config.model.coef_
 
     predict_x = x.reindex(predict_index)
 
@@ -106,7 +108,8 @@ def predict(config, context, predict_index, fit_model=True):
     return preds, x, y
 
 
-def cv(config, context, folds=5, repeat=2, print_results=False):
+def cv(config, context, folds=5, repeat=2, print_results=False,
+       predict_method=None, predict_update_column=None):
     # TODO: too much overloading on folds here
     if isinstance(folds, int):
         folds = make_folds(context.data.index, folds, repeat)
@@ -123,12 +126,9 @@ def cv(config, context, folds=5, repeat=2, print_results=False):
         i += 1
         ctx.train_index = train
         ctx.test_index = test
-        preds, x, y = predict(config, ctx, test)
-        actuals = y.reindex(test)
-        config.update_reporters_with_predictions(ctx, x, actuals, preds)
-        for metric in config.metrics:
-            scores[metric.name].append(
-                    metric.score(actuals,preds))
+        fold_scores = evaluate(config, ctx, test, predict_method, predict_update_column)
+        for k, v in fold_scores.items():
+            scores[k].append(v)
     result = {'config':config, 'scores':scores}
 
     # report results
@@ -147,6 +147,59 @@ def cv(config, context, folds=5, repeat=2, print_results=False):
         print "\n" + str(config)
         print_scores(scores)
     return result
+
+
+def evaluate(config, ctx, predict_index,
+             predict_method=None, predict_update_column=None):
+    if predict_method is None:
+        preds, x, y = predict(config, ctx, predict_index)
+    else:
+        # TODO: hacky!
+        preds, x, y = predict_method(config, ctx, predict_index, update_column=predict_update_column)
+    actuals = y.reindex(predict_index)
+    config.update_reporters_with_predictions(ctx, x, actuals, preds)
+    scores = {}
+    for metric in config.metrics:
+        scores[metric.name] = metric.score(actuals,preds)
+    return scores
+
+
+def predict_autosequence(config, context, predict_index, fit_model=True, update_column=None):
+    if len(context.train_index & predict_index):
+        print "WARNING: train and predict indices overlap..."
+
+    x, y = None, None
+
+    if fit_model:
+        x, y = fit(config, context)
+
+    if debug:
+        print x.columns
+        print config.model.coef_
+
+    ctx = context.copy()
+    ps = []
+    for i in predict_index:
+        ctx.data = context.data
+        x = get_x(config, ctx)
+        predict_x = x.reindex([i])
+
+        # make actual predictions
+        p = config.model.predict(predict_x.values)
+        if update_column is not None:
+            ctx.data[update_column][i] = p[0]
+        ps.append(p[0])
+    try:
+        preds = Series(ps, index=predict_index)
+    except:
+        preds = DataFrame(ps, index=predict_index)
+    # prediction post-processing
+    if config.prediction is not None:
+        context.data[config.predictions_name] = preds
+        preds = build_target(config.prediction, context)
+        preds = preds.reindex(predict_index)
+    preds.name = ''
+    return preds, x, y
 
 
 def print_scores(scores_dict):
