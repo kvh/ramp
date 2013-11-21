@@ -201,9 +201,11 @@ class ComboFeature(BaseFeature):
         Stable, unique key for this feature and a given prep_index and train_index.
         we key on train_index as well because prep data may involve training.
         """
+        if not self.context.key_on_indices():
+            return self.unique_name + '__prep__'
         s = get_np_hashable(self.context.prep_index)
         tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
-        return self.unique_name + '--prep--' + md5('%s--%s' % (s, tindex)).hexdigest()
+        return self.unique_name + '__prep__' + md5('%s--%s' % (s, tindex)).hexdigest()
 
     def get_prep_data(self, data=None, force=False):
         try:
@@ -219,6 +221,8 @@ class ComboFeature(BaseFeature):
         return prep_data
 
     def create_key(self):
+        if not self.context.key_on_indices():
+            return self.unique_name
         s = get_np_hashable(self.context.data.index)
         tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
         pindex = get_np_hashable(self.context.prep_index) if self.depends_on_other_x() else ''
@@ -233,7 +237,8 @@ class ComboFeature(BaseFeature):
         self.context = context
 
         try:
-            if force: raise KeyError
+            if force or not self.context.key_on_indices():
+                raise KeyError
             d = self.context.store.load(self.create_key())
             #print "loading '%s'" % (self.unique_name)
             #TODO: repeated... use 'with' maybe?

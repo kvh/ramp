@@ -23,18 +23,32 @@ def _pprint(params):
     return lines
 
 
+def pprint_scores(scores):
+    scores = np.array(scores)
+    stderr = scores.std() / np.sqrt(len(scores))
+    mn = scores.mean()
+    s = "%g (+/- %g) [%g, %g]\n" % (
+        mn, stderr, mn - 2 * stderr, mn + 2 * stderr)
+    return s
+
+
 def make_folds(index, nfolds=5, repeat=1, shuffle=True):
     n = len(index)
     indices = range(n)
     foldsize = n / nfolds
+    folds = []
     for i in range(repeat):
+        if nfolds == 1:
+            folds.append((index, index))
+            continue
         if shuffle:
             random.shuffle(indices)
         for i in range(nfolds):
             test = index[indices[i*foldsize:(i + 1)*foldsize]]
             train = index - test
             assert not (train & test)
-            yield train, test
+            folds.append((train, test))
+    return folds
 
 
 def get_np_hash(obj):

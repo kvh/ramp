@@ -1,6 +1,7 @@
 import models
 from configuration import Configuration, ConfigFactory
 from context import DataContext
+from utils import pprint_scores
 from prettytable import PrettyTable, ALL
 import numpy as np
 
@@ -46,7 +47,8 @@ def cv_factory(store=None, data=None, **kwargs):
     fact = ConfigFactory(Configuration(), **kwargs)
     results = []
     for conf in fact:
-        results.append(cv(conf, DataContext(store, data), **fargs))
+        ctx = DataContext(store, data)
+        results.append(cv(conf, ctx, **fargs))
     t = PrettyTable(["Configuration", "Score"])
     t.hrules = ALL
     t.align["Configuration"] = "l"
@@ -54,10 +56,7 @@ def cv_factory(store=None, data=None, **kwargs):
         scores_dict = r['scores']
         s = ""
         for metric, scores in scores_dict.items():
-            scores = np.array(scores)
-            s += "%s: %0.4f (+/- %0.4f) [%0.4f,%0.4f]\n" % (
-                    metric,
-                    scores.mean(), scores.std(), min(scores),
-                    max(scores))
+            s += "%s: %s" % (metric, pprint_scores(scores))
         t.add_row([str(r['config']), s])
     print t
+    return ctx

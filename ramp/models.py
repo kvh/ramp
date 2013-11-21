@@ -1,4 +1,4 @@
-from utils import make_folds, _pprint
+from utils import make_folds, _pprint, get_single_column, pprint_scores
 from pandas import Series, concat, DataFrame
 import random
 import hashlib
@@ -32,13 +32,23 @@ def get_key(config, context):
     return '%r-%s' % (config, context.create_key())
 
 
-def fit(config, context, model_name=None):
+def get_metric_name(metric):
+    if hasattr(metric, 'name'):
+        name = metric.name
+    else:
+        name = metric.__name__
+    return name
+
+
+def fit(config, context, model_name=None, load_only=False):
     x, y = None, None
     try:
         # model caching
         config.model = context.store.load(model_name or get_key(config, context))
-        print "loading stored model..."
+        print "Loading stored model..."
     except KeyError:
+        if load_only:
+            raise Exception("Could not load model and load_only=True.")
         x, y = get_xy(config, context)
 
         train_x = x.reindex(context.train_index)
@@ -48,10 +58,12 @@ def fit(config, context, model_name=None):
 
         if debug:
             print train_x
-        if debug:
-            print "Fitting model '%s'." % (config.model)
+            print train_x.columns
 
         print "Fitting model '%s' ... " % (config.model),
+        #if isinstance(config.model, DataFrameEstimator):
+            #config.model.fit(train_x, train_y)
+        #else:
         config.model.fit(train_x.values, train_y.values)
         print "[OK]"
         context.store.save(model_name or get_key(config, context), config.model)
@@ -101,11 +113,18 @@ def predict(config, context, predict_index, fit_model=True, model_name=None):
     print "[OK]"
     # prediction post-processing
     if config.prediction is not None:
+        old = context.data
+        context.data = context.data.reindex(predict_x.index)
         context.data[config.predictions_name] = preds
         preds = build_target(config.prediction, context)
-        preds = get_single_column(preds).reindex(predict_x.index)
+        preds = preds.reindex(predict_x.index)
+        context.data = old
     preds.name = ''
-    return preds, x, y
+    actuals = y.reindex(predict_index)
+    predict_x['predictions'] = preds
+    predict_x['actuals'] = actuals
+    config.update_reporters_with_predictions(context, predict_x, actuals, preds)
+    return predict_x
 
 
 def cv(config, context, folds=5, repeat=2, print_results=False,
@@ -113,9 +132,9 @@ def cv(config, context, folds=5, repeat=2, print_results=False,
     # TODO: too much overloading on folds here
     if isinstance(folds, int):
         folds = make_folds(context.data.index, folds, repeat)
-    else:
-        folds.set_context(config, context)
-    scores = {m.name: [] for m in config.metrics}
+    #else:
+        #folds.set_context(config, context)
+    scores = {get_metric_name(m): [] for m in config.metrics}
     # we are overwriting indices, so make a copy
     ctx = context.copy()
     i = 0
@@ -126,9 +145,13 @@ def cv(config, context, folds=5, repeat=2, print_results=False,
         i += 1
         ctx.train_index = train
         ctx.test_index = test
-        fold_scores = evaluate(config, ctx, test, predict_method, predict_update_column)
-        for k, v in fold_scores.items():
-            scores[k].append(v)
+        fold_scores, result = evaluate(config, ctx, test, predict_method, predict_update_column)
+        context.latest_result = result
+        for metric_, s in fold_scores.items():
+            scores[metric_].append(s)
+        if print_results:
+            for metric_, s in scores.items():
+                print "%s: %s" % (metric_, pprint_scores(s))
     result = {'config':config, 'scores':scores}
 
     # report results
@@ -141,27 +164,36 @@ def cv(config, context, folds=5, repeat=2, print_results=False,
         reporter.reset()
     print t
     
-    #if save:
-        #dataset.save_models([(scores, copy.copy(config))])
-    if print_results:
-        print "\n" + str(config)
-        print_scores(scores)
     return result
 
 
 def evaluate(config, ctx, predict_index,
              predict_method=None, predict_update_column=None):
     if predict_method is None:
-        preds, x, y = predict(config, ctx, predict_index)
+        result = predict(config, ctx, predict_index)
     else:
         # TODO: hacky!
-        preds, x, y = predict_method(config, ctx, predict_index, update_column=predict_update_column)
-    actuals = y.reindex(predict_index)
-    config.update_reporters_with_predictions(ctx, x, actuals, preds)
+        result = predict_method(config, ctx, predict_index, update_column=predict_update_column)
+    preds = result['predictions']
+    y = result['actuals']
+
+    try:
+        if config.actual is not None:
+            actuals = build_target(config.actual, ctx).reindex(predict_index)
+        else:
+            actuals = y.reindex(predict_index)
+    #TODO: HACK -- there may not be an actual attribute on the config
+    except AttributeError:
+        actuals = y.reindex(predict_index)
+
     scores = {}
     for metric in config.metrics:
-        scores[metric.name] = metric.score(actuals,preds)
-    return scores
+        name = get_metric_name(metric)
+        if hasattr(metric, 'score'):
+            scores[name] = metric.score(actuals, preds)
+        else:
+            scores[name] = metric(actuals, preds)
+    return scores, result
 
 
 def predict_autosequence(config, context, predict_index, fit_model=True, update_column=None):
@@ -202,11 +234,7 @@ def predict_autosequence(config, context, predict_index, fit_model=True, update_
     return preds, x, y
 
 
-def print_scores(scores_dict):
-    for metric, scores in scores_dict.items():
-        scores = np.array(scores)
-        print metric
-        print "%0.4f (+/- %0.4f) [%0.4f,%0.4f]\n" % (
-            scores.mean(), scores.std(), min(scores),
-            max(scores))
+def cv_autosequence(config, context, folds=5, repeat=2, print_results=False, update_column=None):
+    return cv(config, context, folds, repeat, print_results, predict_method=predict_autosequence,
+            predict_update_column=update_column)
 

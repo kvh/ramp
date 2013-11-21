@@ -97,6 +97,44 @@ class TestBasicFeature(unittest.TestCase):
         r = r[r.columns[0]]
         self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
 
+        # new train_index should bust old cache
+        ctx.data = ctx.data.ix[[idx, idx+1]]
+        ctx.train_index = ctx.data.index
+        ctx.prep_index = ctx.data.index
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r[idx], (100 - ctx.data['a'].mean()) / ctx.data['a'].std())
+
+    def test_create_cache_train_once(self):
+        self.ctx = context.DataContext(store.MemoryStore('test', verbose=True),
+                self.data, train_once=True)
+        f = base.Normalize(base.F(10) + base.F('a'))
+        ctx = self.ctx
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r.mean(), 0)
+        self.assertAlmostEqual(r.std(), 1)
+
+        # now add some new data
+        idx = len(self.data) + 1000
+        ctx.data = ctx.data.append(DataFrame([100, 200], columns=['a'], index=Index([idx, idx+1])))
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
+
+        # drop all the other data ... should still use old prep data
+        ctx.data = ctx.data.ix[[idx, idx+1]]
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
+
+        # new train_index should NOT bust old cache
+        ctx.data = ctx.data.ix[[idx, idx+1]]
+        ctx.train_index = ctx.data.index
+        ctx.prep_index = ctx.data.index
+        r = f.create(ctx)
+        r = r[r.columns[0]]
+        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
 
 class DummyEstimator(object):
     def __init__(self):

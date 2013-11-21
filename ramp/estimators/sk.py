@@ -15,8 +15,9 @@ class Probabilities(object):
         self.estimator = estimator
         self.binary = binary
 
-    def __getattr__(self, name):
-        return getattr(self.estimator, name)
+    # TODO: Need solution here...
+    #def __getattr__(self, name):
+        #return getattr(self.estimator, name)
 
     def __str__(self):
         return u"Probabilites for %s" % self.estimator

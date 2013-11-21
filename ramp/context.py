@@ -23,7 +23,7 @@ class DataContext(object):
     """
     
     def __init__(self, store=None, data=None, train_index=None,
-                 prep_index=None):
+                 prep_index=None, train_once=False):
         """
         Parameters:
         -----------
@@ -44,6 +44,10 @@ class DataContext(object):
             used in prepping ("x" values). Stored results will be cached
             against this. If not provided, the entire index of `data`
             keyword arg will be used.
+        train_once: boolean
+            If True, train and predict indexes will not be used as part of key
+            hashes, meaning the values from the first run with this context
+            will be stored permanently.
         """
         if store is None:
             self.store = MemoryStore()
@@ -64,6 +68,10 @@ class DataContext(object):
             self.prep_index = self.data.index
         else:
             self.prep_index = None
+        self.train_once = train_once
+
+    def key_on_indices(self):
+        return not self.train_once
 
     def copy(self):
         """Make a shallow copy of the DataContext"""
@@ -71,6 +79,8 @@ class DataContext(object):
 
     def create_key(self):
         """Create hex key using MD5 algorithm."""
+        if not self.key_on_indices():
+            return ''
         return md5('%s--%s' % (get_np_hashable(self.train_index),
                    get_np_hashable(self.prep_index))).hexdigest()
 
