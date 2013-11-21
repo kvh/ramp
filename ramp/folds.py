@@ -83,3 +83,22 @@ class SampledFolds(object):
             yield pd.Index(train), pd.Index(test)
 
 
+class SequenceFolds(object):
+    
+    def __init__(self, train_size, test_size,
+            verbose=True):
+        self.train_size = train_size
+        self.test_size = test_size
+        self.verbose = verbose
+
+    def set_context(self, config, context):
+        self.context = context
+        self.config = config
+
+    def __iter__(self):
+        index = self.context.data.index
+        for i in range(self.train_size, len(index) - self.test_size):
+            train = index[:i]
+            test = index[i:i+self.test_size]
+            yield pd.Index(train), pd.Index(test)
+        

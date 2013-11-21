@@ -1,4 +1,4 @@
-from base import ComboFeature, Feature, DummyFeature
+from base import ComboFeature, Feature, DummyFeature, to_feature
 from .. import models
 from ..utils import make_folds, get_single_column
 from pandas import Series, DataFrame, concat
@@ -35,9 +35,6 @@ class Predictions(Feature):
     def depends_on_y(self):
         return self.trained
 
-    def depends_on_other_x(self):
-        return True
-
     def get_context(self):
         return self.external_context or self.context
 
@@ -58,13 +55,18 @@ class Predictions(Feature):
             else:
                 folds = self.cv_folds
             preds = []
+            old_train_index = self.context.train_index
+            old_prep_index = self.context.prep_index
             for train, test in folds:
                 ctx = context.copy()
-                ctx.train_index = train
-                preds.append(self._predict(ctx, test, fit_model=True))
+                self.context.train_index = train
+                self.context.prep_index = train
+                preds.append(self._predict(ctx, test))
             # if there is held-out data, use all of train to predict
             # (these predictions use more data, so will be "better",
             # not sure if that is problematic...)
+            self.context.train_index = old_train_index
+            self.context.prep_index = old_prep_index
             remaining = context.data.index - context.train_index
             if len(remaining):
                 preds.append(self._predict(context, remaining))
@@ -80,7 +82,7 @@ class Predictions(Feature):
         if not fit_model:
             model = self.get_prep_data(context.data)
             self.config.model = model
-        return models.predict(self.config, context, pred_index, fit_model=fit_model)[0]
+        return models.predict(self.config, context, pred_index, fit_model=fit_model)['predictions']
 
 
 class Residuals(Predictions):
@@ -88,7 +90,7 @@ class Residuals(Predictions):
     def _predict(self, context, pred_index=None):
         if pred_index is None:
             pred_index = context.data.index
-        preds = models.predict(self.config, context, pred_index)[0]
+        preds = models.predict(self.config, context, pred_index)['predictions']
         return get_single_column(self.config.target.create(context)) - preds
 
 
@@ -100,7 +102,7 @@ class FeatureSelector(ComboFeature):
         super(FeatureSelector, self).__init__(features)
         self.selector = selector
         self.n_keep = n_keep
-        self.target = target
+        self.target = to_feature(target)
         self.train_only = train_only
         self._cacheable = cache
         self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
@@ -126,3 +128,43 @@ class FeatureSelector(ComboFeature):
         cols = self.get_prep_data(data)
         return data[cols]
 
+
+class TargetAggregationByFactor(Feature):
+    """
+    """
+    def __init__(self, feature, func=None, target=None, min_sample=10,
+            verbose=False):
+        super(TargetAggregationByFactor, self).__init__(feature)
+        self.func = func
+        self.target = to_feature(target)
+        self.min_sample = min_sample
+        self.verbose = verbose
+
+    def depends_on_y(self):
+        return True
+
+    def _prepare(self, data):
+        y = get_single_column(self.target.create(self.context)).reindex(self.context.train_index)
+        x = data.reindex(self.context.train_index)
+        c = x.columns[0]
+        vc = x[c].value_counts()
+        keys = [k for k, v in vc.iterkv() if v > self.min_sample]
+        x['__grouping'] = x[c].map(lambda x: x if x in keys else '__other')
+        x['__target'] = y
+        vals = x.groupby('__grouping').agg({'__target': self.func})['__target'].to_dict()
+        if self.verbose:
+            print "\nPreparing Target aggs"
+            print vals.items()[:10]
+        del x['__target']
+        del x['__grouping']
+        return (keys, vals)
+
+    def _create(self, data):
+        keys, vals = self.get_prep_data(data)
+        if self.verbose:
+            print "\nLoading Target aggs"
+            print vals.items()[:10]
+            print keys[:10]
+            print data.columns
+        data = data.applymap(lambda x: vals.get(x if x in keys else '__other', 0))
+        return data

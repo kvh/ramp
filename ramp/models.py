@@ -121,6 +121,7 @@ def predict(config, context, predict_index, fit_model=True, model_name=None):
         context.data = old
     preds.name = ''
     actuals = y.reindex(predict_index)
+    # TODO: handle multi-variate predictions
     predict_x['predictions'] = preds
     predict_x['actuals'] = actuals
     config.update_reporters_with_predictions(context, predict_x, actuals, preds)

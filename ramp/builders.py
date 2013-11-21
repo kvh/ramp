@@ -22,11 +22,11 @@ def build_feature_safe(feature, context):
             print "\nWARNING: Feature '%s' has constant column.\n" % feature.unique_name
 
     # we probably dont want NANs here...
-    if np.isnan(d.values).any():
-        # TODO HACK: this is not right.  (why isn't it right???)
-        if not feature.unique_name.startswith(
-                Configuration.DEFAULT_PREDICTIONS_NAME):
-            print "\n***** WARNING: NAN in feature '%s' *****\n"%feature.unique_name
+    #if np.isnan(d.values).any():
+        ## TODO HACK: this is not right.  (why isn't it right???)
+        #if not feature.unique_name.startswith(
+                #Configuration.DEFAULT_PREDICTIONS_NAME):
+            #print "\n***** WARNING: NAN in feature '%s' *****\n"%feature.unique_name
 
     return d
 

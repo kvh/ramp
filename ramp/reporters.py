@@ -1,6 +1,7 @@
 from sklearn import metrics
 import numpy as np
 from pandas import DataFrame
+from utils import pprint_scores
 from collections import defaultdict
 
 
@@ -142,3 +143,20 @@ class ROCCurve(Reporter):
         pl.title('ROC')
         pl.legend(loc="lower right")
         pl.show()
+
+
+class OOBEst(Reporter):
+
+    def __init__(self):
+        self.scores = []
+
+    def update_with_model(self, model):
+        try:
+            print "OOB score:", model.oob_score_
+            self.scores.append(model.oob_score_)
+        except AttributeError:
+            print "Model has no OOB score"
+
+    def report(self):
+        if not self.scores: return
+        return "OOB Est: %s" % (pprint_scores(self.scores))

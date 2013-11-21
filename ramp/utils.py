@@ -51,6 +51,13 @@ def make_folds(index, nfolds=5, repeat=1, shuffle=True):
     return folds
 
 
+def make_subset_prediction_folds(index, sub_pred_index, nfolds=5, repeat=1):
+    folds = []
+    for train, test in make_folds(index, nfolds, repeat):
+        folds.append((train, test & sub_pred_index))
+    return folds
+
+
 def get_np_hash(obj):
     return md5(get_np_hashable(obj)).hexdigest()
 
