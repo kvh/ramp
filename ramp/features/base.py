@@ -24,18 +24,6 @@ from ..utils import _pprint, get_np_hashable, get_single_column, stable_repr, re
 available_features = []
 
 
-class Feature(object):
-    def __init__(self, feature):
-        self.feature = feature
-        # Normalize(FillMissing('x1', 0))
-
-    def build(self, data, prep_data, train_data):
-        data, _pf, _tf = self.feature.build(data, prep_data, train_data)
-        ff = FittedFeature()
-        ff.prepped_data = self.prepare(prep_data)
-        ff.trained_data = self.train(train_data)
-        feature_data = self.apply(data, pf, tf)
-        return feature_data, ff
 
 
 class Storable(object):
@@ -53,6 +41,8 @@ class FittedFeature(Storable):
         # handle both ComboFeatures and Features naturally
         if inner_fitted_feature or isinstance(inner_fitted_features, FittedFeature):
             self.inner_fitted_feature = inner_fitted_feature
+        elif len(inner_fitted_features) == 1:
+            self.inner_fitted_feature = inner_fitted_features[0]
         elif inner_fitted_features:
             self.inner_fitted_features = inner_fitted_features
         else:
@@ -63,32 +53,6 @@ class FittedFeature(Storable):
         # ...
         # self.* = *
 
-
-class Estimator(object):
-    def fit(self, x, y):
-        pass
-
-    def predict(self, x):
-        pass
-
-
-# class FittedEstimator(Storable):
-#     def __init__ ():
-#         # compute metadata
-
-#     def predict
-#     def predict_proba
-
-
-class FittedModel(Storable):
-
-    def __init__(self,
-                 model_def,
-                 fitted_features,
-                 fitted_target,
-                 fitted_estimator):
-        # self.* = *
-        pass
 
 
 class BaseFeature(object):
@@ -125,13 +89,10 @@ class BaseFeature(object):
         return self.apply(data, prepped_feature, trained_feature)
 
     def build(self, data, prep_index=None, train_index=None):
-        print data
         feature_data = self.apply(data)
         return feature_data, None
 
     def apply(self, data, fitted_feature=None):
-        print data
-        print self.feature
         return DataFrame(data[self.feature],
                          columns=[self.feature])
 
@@ -319,6 +280,7 @@ class ComboFeature(BaseFeature):
             feature_data = self._apply(datas[0], ff)
         else:
             feature_data = self._combine_apply(datas, ff)
+        feature_data = self._prepend_feature_name_to_all_columns(feature_data)
         return feature_data, ff
 
     def _prepend_feature_name_to_all_columns(self, data):
@@ -327,7 +289,8 @@ class ComboFeature(BaseFeature):
         return data
 
     def apply(self, data, fitted_feature):
-        for feature, inner_fitted_feature in zip(self.features, fitted_feature.fitted_features):
+        datas = []
+        for feature, inner_fitted_feature in zip(self.features, fitted_feature.inner_fitted_features):
             datas.append(feature.apply(data, inner_fitted_feature))
         feature_data = self._combine_apply(datas, fitted_feature)
         if not isinstance(feature_data, DataFrame):
@@ -340,16 +303,20 @@ class ComboFeature(BaseFeature):
     def _combine_apply(self, datas, fitted_feature):
         raise NotImplementedError
 
-    def prepare(self, prep_data):
+    def prepare(self, prep_datas):
         if hasattr(self, '_prepare'):
-            prepped_data = self._prepare(prep_data)
+            if len(prep_datas) == 1:
+                prep_datas = prep_datas[0]
+            prepped_data = self._prepare(prep_datas)
             return prepped_data
         else:
             return None
 
-    def train(self, train_data):
+    def train(self, train_datas):
         if hasattr(self, '_train'):
-            trained_data = self._train(train_data)
+            if len(train_datas) == 1:
+                train_datas = train_datas[0]
+            trained_data = self._train(train_datas)
             return trained_data
         else:
             return None
@@ -364,7 +331,9 @@ class Feature(ComboFeature):
         self.feature = self.features[0]
 
     def apply(self, data, fitted_feature):
+        # recurse:
         data = self.feature.apply(data, fitted_feature.inner_fitted_feature)
+        # apply this feature's transformation:
         feature_data = self._apply(data, fitted_feature)
         if not isinstance(feature_data, DataFrame):
             raise TypeError("_apply() method must return a DataFrame")

@@ -3,11 +3,13 @@ from .. import models
 from ..utils import make_folds, get_single_column
 from pandas import Series, DataFrame, concat
 
+from ramp.modeling import fit_model, predict_model
+
 
 class Predictions(Feature):
     # TODO: update for new context
 
-    def __init__(self, config, name=None, external_context=None,
+    def __init__(self, model_def, name=None, external_context=None,
             cv_folds=None, cache=False):
         """
         If cv-folds is specified, will use k-fold cross-validation to
@@ -18,78 +20,58 @@ class Predictions(Feature):
         Can be int or iteratable of (train, test) indices
         """
         self.cv_folds = cv_folds
-        self.config = config
+        self.model_def = model_def
         self.external_context = external_context
         self.feature = DummyFeature()
         self._cacheable = cache
         self.trained = True
         super(Predictions, self).__init__(self.feature)
-        if self.external_context is not None:
-            # Dont need to retrain if using external dataset to train
-            self.trained = False
+        # if self.external_context is not none:
+        #     # dont need to retrain if using external dataset to train
+        #     self.trained = false
         if not name:
-            name = 'Predictions'
+            name = 'predictions'
         self._name = '%s[%s,%d features]'%(name,
-                config.model.__class__.__name__, len(config.features))
+                model_def.estimator.__class__.__name__, len(model_def.features))
 
-    def depends_on_y(self):
-        return self.trained
+    def _train(self, train_data):
+        x, y, fitted_model = fit_model(self.model_def, train_data)
+        return fitted_model
 
-    def depends_on_other_x(self):
-        return True
-
-    def get_context(self):
-        return self.external_context or self.context
-
-    def _prepare(self, data):
-        context = self.get_context()
-        pre_data = context.data
-        # only use training instances
-        context.data = data.reindex(context.train_index)
-        models.fit(self.config, context)
-        context.data = pre_data
-        return self.config.model
-
-    def _create(self, data):
-        context = self.get_context()
-        if self.cv_folds:
-            if isinstance(self.cv_folds, int):
-                folds = make_folds(context.train_index, self.cv_folds)
-            else:
-                folds = self.cv_folds
-            preds = []
-            for train, test in folds:
-                ctx = context.copy()
-                ctx.train_index = train
-                preds.append(self._predict(ctx, test, fit_model=True))
-            # if there is held-out data, use all of train to predict
-            # (these predictions use more data, so will be "better",
-            # not sure if that is problematic...)
-            remaining = context.data.index - context.train_index
-            if len(remaining):
-                preds.append(self._predict(context, remaining))
-            preds = concat(preds, axis=0)
-        else:
-            preds = self._predict(context)
+    def _apply(self, data, fitted_feature):
+        fitted_model = fitted_feature.trained_data
+        # if self.cv_folds:
+        #     if isinstance(self.cv_folds, int):
+        #         folds = make_folds(context.train_index, self.cv_folds)
+        #     else:
+        #         folds = self.cv_folds
+        #     preds = []
+        #     for train, test in folds:
+        #         ctx = context.copy()
+        #         ctx.train_index = train
+        #         preds.append(self._predict(ctx, test, fit_model=True))
+        #     # if there is held-out data, use all of train to predict
+        #     # (these predictions use more data, so will be "better",
+        #     # not sure if that is problematic...)
+        #     remaining = context.data.index - context.train_index
+        #     if len(remaining):
+        #         preds.append(self._predict(context, remaining))
+        #     preds = concat(preds, axis=0)
+        # else:
+        preds = self._predict(fitted_model, data)
         preds = DataFrame(preds)
         return preds
 
-    def _predict(self, context, pred_index=None, fit_model=False):
-        if pred_index is None:
-            pred_index = context.data.index
-        if not fit_model:
-            model = self.get_prep_data(context.data)
-            self.config.model = model
-        return models.predict(self.config, context, pred_index, fit_model=fit_model)[0]
+    def _predict(self, fitted_model, predict_data):
+        x_test, y_true, y_preds = predict_model(self.model_def, predict_data, fitted_model)
+        return y_preds
 
 
 class Residuals(Predictions):
 
-    def _predict(self, context, pred_index=None):
-        if pred_index is None:
-            pred_index = context.data.index
-        preds = models.predict(self.config, context, pred_index)[0]
-        return get_single_column(self.config.target.create(context)) - preds
+    def _predict(self, fitted_model, predict_data):
+        x_test, y_true, y_preds = predict_model(self.model_def, predict_data, fitted_model)
+        return y_preds - y_true
 
 
 class FeatureSelector(ComboFeature):
@@ -108,7 +90,7 @@ class FeatureSelector(ComboFeature):
     def depends_on_y(self):
         return self.train_only or super(FeatureSelector, self).depends_on_y()
 
-    def _prepare(self, data):
+    def _train(self, data):
         if self.train_only:
             y = get_single_column(self.target.create(self.context)).reindex(self.context.train_index)
             x = data.reindex(self.context.train_index)
@@ -121,31 +103,36 @@ class FeatureSelector(ComboFeature):
     def select(self, x, y):
         return self.selector.sets(x, y, self.n_keep)
 
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         data = concat(datas, axis=1)
         cols = self.get_prep_data(data)
         return data[cols]
 
+
 class FactorTargetAgg(Feature):
     """
     """
-    def __init__(self, feature, func=None, target=None):
+    target_temp_name = '$$_target'
+
+    def __init__(self, feature, func=None, target=None, default_val='mean'):
         super(FactorTargetAgg, self).__init__(feature)
         self.func = func
         self.target = target
+        self.default_val = default_val
 
-    def depends_on_y(self):
-        return True
-
-    def _prepare(self, data):
-        y = get_single_column(self.target.create(self.context)).reindex(self.context.train_index)
-        x = data.reindex(self.context.train_index)
-        c = x.columns[0]
-        x['$$__target'] = y
-        vals = x.groupby(c).agg({'$$__target': self.func})['$$__target'].to_dict()
+    def _train(self, train_data):
+        y = build_target_safe(self.target, train_data)
+        group_by = train_data.columns[0]
+        train_data[target_temp_name] = y
+        vals = train_data.groupby(c).agg({target_temp_name: self.func})[target_temp_name].to_dict()
+        del train_data[target_temp_name]
         print vals.items()[:10]
-        return vals
+        return vals, y.mean()
 
-    def _create(self, data):
-        vals = self.get_prep_data(data)
-        return data.applymap(lambda x: vals.get(x, 0))
+    def _apply(self, data, fitted_feature):
+        vals, mean = fitted_feature.trained_data
+        if self.default_val == 'mean':
+            default = mean
+        else:
+            default = self.default_val
+        return data.applymap(lambda x: vals.get(x, default))

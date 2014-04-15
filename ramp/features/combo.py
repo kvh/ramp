@@ -24,21 +24,21 @@ class ComboMap(ComboFeature):
         return data
 
 class Add(ComboMap):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         return self._combine(datas, DataFrame.add)
 class Divide(ComboMap):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         return self._combine(datas, DataFrame.div)
 class Multiply(ComboMap):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         return self._combine(datas, DataFrame.mul)
 class Sub(ComboMap):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         return self._combine(datas, DataFrame.sub)
 
 
 class Interactions(ComboFeature):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         cols = []
         colnames = []
         data = concat(datas, axis=1)
@@ -62,7 +62,7 @@ class OutlierCount(ComboFeature):
     def is_outlier(self, x, mean, std):
         return int(abs((x-mean)/std) > self.stdevs)
 
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         count = DataFrame(np.zeros(len(datas[0])), index=datas[0].index)
         eps = 1.0e-8
         col_names = []
@@ -89,7 +89,7 @@ class DimensionReduction(ComboFeature):
         self.decomposer.fit(data.values)
         return {'decomposer': self.decomposer}
 
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         data = concat(datas, axis=1)
         decomposer = self.get_prep_data(data)['decomposer']
         decomp = decomposer.transform(data)
