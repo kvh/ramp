@@ -35,7 +35,6 @@ def make_data(n):
 class TestBasicFeature(unittest.TestCase):
     def setUp(self):
         self.data = make_data(10)
-        self.ctx = context.DataContext(store.MemoryStore('test', verbose=True), self.data)
 
     def test_basefeature(self):
         f = BaseFeature('col1')
@@ -53,11 +52,11 @@ class TestBasicFeature(unittest.TestCase):
 
     def test_constantfeature_float(self):
         f = ConstantFeature(math.e)
-        e_str = '2.71828182846'
         self.assertEqual(f.feature, math.e)
-        self.assertEqual(str(f), e_str)
-        self.assertEqual(repr(f), '2.718281828459045')
-        self.assertEqual(f.unique_name, e_str)
+        self.assertEqual(str(f), str(math.e))
+        self.assertEqual(repr(f), repr(math.e))
+        print f.unique_name
+        self.assertEqual(f.unique_name, str(math.e))
 
     def test_combofeature(self):
         f = ComboFeature(['col1', 'col2'])
@@ -78,8 +77,9 @@ class TestBasicFeature(unittest.TestCase):
 
     def test_create_cache(self):
         f = base.Normalize(base.F(10) + base.F('a'))
-        ctx = self.ctx
-        r = f.create(ctx)
+        res, fitted_feature = f.build(self.data)
+        print fitted_feature.prepped_data
+        self.assertEqual(fitted_feature.prepped_data, {})
         r = r[r.columns[0]]
         self.assertAlmostEqual(r.mean(), 0)
         self.assertAlmostEqual(r.std(), 1)

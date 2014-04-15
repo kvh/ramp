@@ -31,6 +31,11 @@ def build_feature_safe(feature, context):
     return d
 
 
+def prep_feature(feature, data_ctx):
+    prepped_feature = feature.prepare(data_ctx)
+    return prepped_feature
+
+
 def build_featureset(features, context):
     # check for dupes
     colnames = set([f.unique_name for f in features])

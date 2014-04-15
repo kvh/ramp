@@ -73,6 +73,17 @@ def get_single_column(df):
     assert len(df.columns) == 1
     return df[df.columns[0]]
 
+def reindex_safe(df, idx):
+    # duplicate labels don't make sense in this context
+    assert len(idx) == len(idx.unique()), "index contains %d duplicates" % len(idx) - len(idx.unique())
+    if df.index.equals(idx):
+        df_idx = df
+    else:
+        df_idx = df.loc[idx]
+        # ditto
+        assert len(df_idx) == len(idx)
+    return df_idx
+
 
 re_object_repr = re.compile(r'\sat\s\w+>')
 
