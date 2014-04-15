@@ -17,6 +17,9 @@ import os, sys
 
 from pandas.util.testing import assert_almost_equal
 
+from ramp.builders import *
+from ramp.model_definition import ModelDefinition
+
 
 def strip_hash(s):
     return s[:-11]
@@ -35,31 +38,30 @@ def make_data(n):
 class TestBasicFeature(unittest.TestCase):
     def setUp(self):
         self.data = make_data(10)
-        self.ctx = context.DataContext(store.MemoryStore('test', verbose=True), self.data)
 
-    def test_basefeature(self):
+    def test_basefeature_reprs(self):
         f = BaseFeature('col1')
         self.assertEqual(f.feature, 'col1')
         self.assertEqual(str(f), 'col1')
         self.assertEqual(repr(f), "'col1'")
         self.assertEqual(f.unique_name, 'col1')
 
-    def test_constantfeature_int(self):
+    def test_constantfeature_int_reprs(self):
         f = ConstantFeature(1)
         self.assertEqual(f.feature, 1)
         self.assertEqual(str(f), '1')
         self.assertEqual(repr(f), '1')
         self.assertEqual(f.unique_name, '1')
 
-    def test_constantfeature_float(self):
+    def test_constantfeature_float_reprs(self):
         f = ConstantFeature(math.e)
-        e_str = '2.71828182846'
         self.assertEqual(f.feature, math.e)
-        self.assertEqual(str(f), e_str)
-        self.assertEqual(repr(f), '2.718281828459045')
-        self.assertEqual(f.unique_name, e_str)
+        self.assertEqual(str(f), str(math.e))
+        self.assertEqual(repr(f), repr(math.e))
+        print f.unique_name
+        self.assertEqual(f.unique_name, str(math.e))
 
-    def test_combofeature(self):
+    def test_combofeature_reprs(self):
         f = ComboFeature(['col1', 'col2'])
         for sf in f.features:
             self.assertIsInstance(sf, BaseFeature)
@@ -68,7 +70,7 @@ class TestBasicFeature(unittest.TestCase):
         self.assertEqual(repr(f), "ComboFeature(_name='Combo',"
         "features=['col1', 'col2'])")
 
-    def test_feature(self):
+    def test_feature_reprs(self):
         f = Feature('col1')
         self.assertIsInstance(f.feature, BaseFeature)
         self.assertEqual(str(f), 'col1')
@@ -76,65 +78,68 @@ class TestBasicFeature(unittest.TestCase):
         self.assertEqual(repr(f), "Feature(_name='',"
         "feature='col1',features=['col1'])")
 
-    def test_create_cache(self):
+    def test_basic_feature_chaining(self):
+        a_mean = self.data.a.mean()
         f = base.Normalize(base.F(10) + base.F('a'))
-        ctx = self.ctx
-        r = f.create(ctx)
-        r = r[r.columns[0]]
-        self.assertAlmostEqual(r.mean(), 0)
-        self.assertAlmostEqual(r.std(), 1)
 
-        # now add some new data
-        idx = len(self.data) + 1000
-        ctx.data = ctx.data.append(DataFrame([100, 200], columns=['a'], index=Index([idx, idx+1])))
-        r = f.create(ctx)
-        r = r[r.columns[0]]
-        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
+        # test build
+        res, fitted_feature = f.build(self.data)
+        self.assertEqual(len(fitted_feature.prepped_data), 1)
+        vals = fitted_feature.prepped_data.values()[0]
+        self.assertAlmostEqual(vals[0], 10 + a_mean)
+        self.assertAlmostEqual(vals[1], self.data.a.std())
 
-        # drop all the other data ... should still use old prep data
-        ctx.data = ctx.data.ix[[idx, idx+1]]
-        r = f.create(ctx)
-        r = r[r.columns[0]]
-        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
+        # test apply
+        res = f.apply(self.data, fitted_feature)
+        self.assertAlmostEqual(res[res.columns[0]].mean(), 0)
+        self.assertAlmostEqual(res[res.columns[0]].std(), 1)
 
-        # new train_index should bust old cache
-        ctx.data = ctx.data.ix[[idx, idx+1]]
-        ctx.train_index = ctx.data.index
-        ctx.prep_index = ctx.data.index
-        r = f.create(ctx)
-        r = r[r.columns[0]]
-        self.assertAlmostEqual(r[idx], (100 - ctx.data['a'].mean()) / ctx.data['a'].std())
+        # test no side-effects
+        self.assertAlmostEqual(a_mean, self.data.a.mean())
 
-    def test_create_cache_train_once(self):
-        self.ctx = context.DataContext(store.MemoryStore('test', verbose=True),
-                self.data, train_once=True)
+    def test_basic_feature_prep_index(self):
+        a_mean = self.data.a.mean()
         f = base.Normalize(base.F(10) + base.F('a'))
-        ctx = self.ctx
-        r = f.create(ctx)
-        r = r[r.columns[0]]
-        self.assertAlmostEqual(r.mean(), 0)
-        self.assertAlmostEqual(r.std(), 1)
+        prep_data = self.data.iloc[range(len(self.data) / 2)]
 
-        # now add some new data
-        idx = len(self.data) + 1000
-        ctx.data = ctx.data.append(DataFrame([100, 200], columns=['a'], index=Index([idx, idx+1])))
-        r = f.create(ctx)
-        r = r[r.columns[0]]
-        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
+        # test build
+        res, fitted_feature = f.build(self.data, prep_index=prep_data.index)
+        self.assertEqual(len(fitted_feature.prepped_data), 1)
+        vals = fitted_feature.prepped_data.values()[0]
+        self.assertAlmostEqual(vals[0], 10 + prep_data.a.mean())
+        self.assertAlmostEqual(vals[1], prep_data.a.std())
 
-        # drop all the other data ... should still use old prep data
-        ctx.data = ctx.data.ix[[idx, idx+1]]
-        r = f.create(ctx)
-        r = r[r.columns[0]]
-        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
+        # test apply
+        res = f.apply(self.data, fitted_feature)
+        expected = (self.data.a - vals[0] + 10) / vals[1]
+        assert_almost_equal(res[res.columns[0]].values, expected.values)
 
-        # new train_index should NOT bust old cache
-        ctx.data = ctx.data.ix[[idx, idx+1]]
-        ctx.train_index = ctx.data.index
-        ctx.prep_index = ctx.data.index
-        r = f.create(ctx)
-        r = r[r.columns[0]]
-        self.assertAlmostEqual(r[idx], (100 - self.data['a'].mean()) / self.data['a'].std())
+    def test_feature_builders(self):
+        # good features
+        features = [base.F(10), base.F('a')]
+        featureset, fitted_features = build_featureset_safe(features, self.data)
+        self.assertEqual(featureset.shape, (len(self.data), 2))
+        featureset = apply_featureset_safe(features, self.data, fitted_features)
+        self.assertEqual(featureset.shape, (len(self.data), 2))
+
+        # bad feature, drops data
+        class BuggyFeature(base.F):
+            def _apply(self, data, fitted_feature):
+                return data.iloc[:len(data)/2]
+        features = [base.F(10), base.F('a'), BuggyFeature('a')]
+        with self.assertRaises(AssertionError):
+            featureset, ffs = build_featureset_safe(features, self.data)
+
+        # target
+        featureset, fitted_feature = build_target_safe(base.F('a'), self.data)
+        self.assertEqual(featureset.shape, (len(self.data), ))
+        self.assertTrue(isinstance(featureset, Series))
+        featureset = apply_target_safe(base.F('a'), self.data, fitted_feature)
+        self.assertEqual(featureset.shape, (len(self.data), ))
+        self.assertTrue(isinstance(featureset, Series))
+
+
+
 
 class DummyEstimator(object):
     def __init__(self):
@@ -169,52 +174,64 @@ class DummyCVEstimator(object):
 class TestTrainedFeature(unittest.TestCase):
     def setUp(self):
         self.data = make_data(10)
-        self.ctx = context.DataContext(store.MemoryStore('test', verbose=True), self.data)
+
+    def make_model_def_basic(self):
+        features = [F(10), F('a')]
+        target = F('b')
+        estimator = DummyEstimator()
+
+        model_def = ModelDefinition(features=features,
+                                    estimator=estimator,
+                                    target=target)
+        return model_def
 
     def test_predictions(self):
         idx = 10
-        est = DummyEstimator()
-        f = Predictions(
-                Configuration(target='y', features=[F('a')], model=est))
-        r = f.create(self.ctx)
+        model_def = self.make_model_def_basic()
+        f = Predictions(model_def)
+        r, ff = f.build(self.data)
         r = r[r.columns[0]]
-        assert_almost_equal(est.fitx.transpose()[0], self.data['a'].values)
-        assert_almost_equal(est.predictx.transpose()[0], self.data['a'].values)
+        assert_almost_equal(r, np.zeros(len(self.data)))
+        fitted_model = ff.trained_data
+        # uggh fix this
+        assert_almost_equal(fitted_model.fitted_estimator.fitx.values.transpose()[1], self.data['a'].values)
+        assert_almost_equal(fitted_model.fitted_estimator.predictx.values.transpose()[1], self.data['a'].values)
 
     def test_predictions_held_out(self):
         idx = 10
-        est = DummyEstimator()
-        f = Predictions(
-                Configuration(target='y', features=[F('a')], model=est))
-        self.ctx.train_index = self.ctx.train_index[:5]
-        r = f.create(self.ctx)
+        model_def = self.make_model_def_basic()
+        f = Predictions(model_def)
+        r, ff = f.build(self.data, train_index=self.data.index[:5])
         r = r[r.columns[0]]
-        assert_almost_equal(est.fitx.transpose()[0], self.data['a'].values[:5])
-        assert_almost_equal(est.predictx.transpose()[0], self.data['a'].values)
+        assert_almost_equal(r, np.zeros(len(self.data)))
+        fitted_model = ff.trained_data
+        # uggh fix this
+        assert_almost_equal(fitted_model.fitted_estimator.fitx.values.transpose()[1], self.data['a'].values[:5])
+        assert_almost_equal(fitted_model.fitted_estimator.predictx.values.transpose()[1], self.data['a'].values)
 
-    def test_predictions_cv(self):
-        idx = 10
-        est = DummyCVEstimator()
+    # def test_predictions_cv(self):
+    #     idx = 10
+    #     est = DummyCVEstimator()
 
-        # make 2 folds
-        folds = [(self.ctx.train_index[:4], self.ctx.train_index[4:8]),
-                (self.ctx.train_index[4:8], self.ctx.train_index[:4])]
+    #     # make 2 folds
+    #     folds = [(self.ctx.train_index[:4], self.ctx.train_index[4:8]),
+    #             (self.ctx.train_index[4:8], self.ctx.train_index[:4])]
 
-        f = Predictions(
-                Configuration(target='y', features=[F('a')], model=est), cv_folds=folds)
-        self.ctx.train_index = self.ctx.train_index[:8]
-        r = f.create(self.ctx)
-        r = r[r.columns[0]]
+    #     f = Predictions(
+    #             Configuration(target='y', features=[F('a')], model=est), cv_folds=folds)
+    #     self.ctx.train_index = self.ctx.train_index[:8]
+    #     r = f.create(self.ctx)
+    #     r = r[r.columns[0]]
 
-        # fit three times, one for each fold, one for held out data
-        self.assertEqual(len(est.fitx), 3)
-        assert_almost_equal(est.fitx[0].transpose()[0], self.data['a'].values[:4])
-        assert_almost_equal(est.fitx[1].transpose()[0], self.data['a'].values[4:8])
-        assert_almost_equal(est.fitx[2].transpose()[0], self.data['a'].values[:8])
+    #     # fit three times, one for each fold, one for held out data
+    #     self.assertEqual(len(est.fitx), 3)
+    #     assert_almost_equal(est.fitx[0].transpose()[0], self.data['a'].values[:4])
+    #     assert_almost_equal(est.fitx[1].transpose()[0], self.data['a'].values[4:8])
+    #     assert_almost_equal(est.fitx[2].transpose()[0], self.data['a'].values[:8])
 
-        assert_almost_equal(est.predictx[0].transpose()[0], self.data['a'].values[4:8])
-        assert_almost_equal(est.predictx[1].transpose()[0], self.data['a'].values[:4])
-        assert_almost_equal(est.predictx[2].transpose()[0], self.data['a'].values[8:])
+    #     assert_almost_equal(est.predictx[0].transpose()[0], self.data['a'].values[4:8])
+    #     assert_almost_equal(est.predictx[1].transpose()[0], self.data['a'].values[:4])
+    #     assert_almost_equal(est.predictx[2].transpose()[0], self.data['a'].values[8:])
 
 
 class TestGroupFeatures(unittest.TestCase):

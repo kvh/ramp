@@ -1,49 +1,74 @@
+import logging
+
+import numpy as np
+from pandas import concat, DataFrame, Series, Index
+
 from configuration import *
 from features.base import BaseFeature, Feature, ConstantFeature
 from utils import _pprint, get_single_column
-from pandas import concat, DataFrame, Series, Index
-import numpy as np
 
 
-def build_target(target, context):
-    y = target.create(context)
+def build_target_safe(target, data, prep_index=None, train_index=None):
+    y, ff = target.build(data, prep_index, train_index)
+    return get_single_column(y), ff
+
+
+def apply_target_safe(target, data, fitted_feature):
+    y = target.apply(data, fitted_feature)
     return get_single_column(y)
 
 
-def build_feature_safe(feature, context):
-    d = feature.create(context)
+def build_feature_safe(feature, data, prep_index=None, train_index=None):
+    d, ff = feature.build(data, prep_index, train_index)
 
     # sanity check index is valid
-    assert not d.index - context.data.index
+    assert d.index.equals(data.index)
 
     # columns probably shouldn't be constant...
     if not isinstance(feature, ConstantFeature):
         if any(d.std() < 1e-9):
-            print "\nWARNING: Feature '%s' has constant column.\n" % feature.unique_name
+            logging.warn("Feature '%s' has constant column." % feature.unique_name)
+    return d, ff
 
-    # we probably dont want NANs here...
-    #if np.isnan(d.values).any():
-        ## TODO HACK: this is not right.  (why isn't it right???)
-        #if not feature.unique_name.startswith(
-                #Configuration.DEFAULT_PREDICTIONS_NAME):
-            #print "\n***** WARNING: NAN in feature '%s' *****\n"%feature.unique_name
 
+def build_featureset_safe(features, data, prep_index=None, train_index=None):
+    # check for dupes
+    colnames = set([f.unique_name for f in features])
+    assert len(features) == len(colnames), "Duplicate feature: %s" % colnames
+    if not features:
+        return
+    logging.info("Building %d features... " % len(features))
+    feature_datas = []
+    fitted_features = []
+    for feature in features:
+        d, ff = build_feature_safe(feature, data, prep_index, train_index)
+        feature_datas.append(d)
+        fitted_features.append(ff)
+    logging.info("Done building features")
+    return concat(feature_datas, axis=1), fitted_features
+
+
+def apply_feature_safe(feature, data, fitted_feature):
+    d = feature.apply(data, fitted_feature)
+
+    # sanity check index is valid
+    assert d.index.equals(data.index)
+
+    # columns probably shouldn't be constant...
+    if not isinstance(feature, ConstantFeature):
+        if any(d.std() < 1e-9):
+            logging.warn("Feature '%s' has constant column." % feature.unique_name)
     return d
 
 
-def build_featureset(features, context):
-    # check for dupes
-    colnames = set([f.unique_name for f in features])
-    assert len(features) == len(colnames), "duplicate feature"
-    if not features:
-        return
-    print "Building %d features... " % len(features),
-    x = []
-    for feature in features:
-        x.append(build_feature_safe(feature, context))
-    for d in x[1:]:
-        assert (d.index == x[0].index).all(), "Mismatched indices after feature creation"
-    print "[OK]"
-    return concat(x, axis=1)
+def apply_featureset_safe(features, data, fitted_features):
+    assert len(features) == len(fitted_features)
+    feature_datas = []
+    logging.info("Applying %d features to %d data points... " % (len(features), len(data)))
+    for f, ff in zip(features, fitted_features):
+        feature_datas.append(apply_feature_safe(f, data, ff))
+    logging.info("Done applying features")
+    return concat(feature_datas, axis=1)
 
-
+build_featureset = build_featureset_safe
+build_target = build_target_safe

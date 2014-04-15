@@ -17,6 +17,13 @@ def predict(store=None, data=None, predict_index=None, **kwargs):
             DataContext(store, data), predict_index=predict_index)
 
 
+def evaluate(data=None, store=None, predict_index=None, train_index=None, **kwargs):
+    if predict_index is None:
+        raise ValueError("You must specify a predict_index kw arg")
+    return models.evaluate(Configuration(**kwargs),
+            DataContext(store, data, train_index=train_index), predict_index=predict_index)
+
+
 def cv(store=None, data=None, **kwargs):
     """Shortcut to cross-validate a single configuration.
 
