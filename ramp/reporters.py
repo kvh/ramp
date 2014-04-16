@@ -121,7 +121,7 @@ class ROCCurve(Reporter):
     
     def update(self, result):
         fpr, tpr, thresholds = metrics.roc_curve(result.y_test, result.evals)
-        self.ret.append((fpr, tpr, thresholds)]
+        self.ret.append((fpr, tpr, thresholds))
         if self.config['verbose']:
             print "ROC thresholds"
             print "FP Rate\tTP Rate"

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import random
-from builders import build_target
+from builders import build_target_safe
 
 
 class WeightedSampleFolds(object):
@@ -20,7 +20,7 @@ class WeightedSampleFolds(object):
 
     def __iter__(self):
         for i in range(self.folds):
-            y = build_target(self.config.target, self.context)
+            y = build_target_safe(self.config.target, self.context)
             positives = y[y != 0].index
             negatives = y[y == 0].index
             np = len(positives)
@@ -63,7 +63,7 @@ class SampledFolds(object):
 
     def __iter__(self):
         for i in range(self.folds):
-            y = build_target(self.config.target, self.context)
+            y = build_target_safe(self.config.target, self.context)
             positives = y[y != 0].index
             negatives = y[y == 0].index
             np = len(positives)

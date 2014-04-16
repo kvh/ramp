@@ -9,6 +9,7 @@ from pandas import DataFrame, Series, Index
 from pandas.util.testing import assert_almost_equal
 
 from ramp.estimators.base import Probabilities
+from ramp.features.base import F, Map
 from ramp.features.trained import Predictions
 from ramp.model_definition import ModelDefinition
 from ramp.modeling import fit_model, predict_model

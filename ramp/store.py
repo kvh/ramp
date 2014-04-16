@@ -42,13 +42,6 @@ def loadpickle(fname):
     """
     return pickle.load(open(fname, 'rb'))
 
-class Storable(object):
-    def save(self, k, v):
-        pass
-    def load(self, k):
-        raise KeyError
-    def delete(self, kp):
-        pass
 
 class Storable(object):
     pass

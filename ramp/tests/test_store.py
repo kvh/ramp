@@ -1,12 +1,13 @@
 import sys
-import unittest
+sys.path.append('../..')
 import tempfile
+import unittest
+
 from pandas import DataFrame
 from pandas.util.testing import assert_almost_equal
 
-sys.path.append('../..')
-from ramp.store import DummyStore, HDFPickleStore, PickleStore, MemoryStore
 from ramp.result import Result
+from ramp.store import DummyStore, HDFPickleStore, PickleStore, MemoryStore
 
 
 class TestStore(unittest.TestCase):

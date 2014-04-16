@@ -8,7 +8,9 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series, Index
 from pandas.util.testing import assert_almost_equal
+from sklearn import linear_model
 
+from ramp.features.base import F, Map
 from ramp.model_definition import ModelDefinition, ModelDefinitionFactory
 
 

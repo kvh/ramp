@@ -27,6 +27,8 @@ class ModelDefinition(object):
     Can be stored (pickled) and retrieved.
     """
     DEFAULT_PREDICTIONS_NAME = '$predictions'
+    params = ['target', 'features', 'estimator', 'column_subset'
+              'prediction', 'predictions_name', 'actual']
 
     def __init__(self, target=None, features=None, estimator=None,
                  column_subset=None, prediction=None, 

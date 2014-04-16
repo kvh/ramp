@@ -6,6 +6,9 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series, Index
 
+from ramp.features.base import F, Map
+from ramp.utils import *
+
 
 class TestUtils(unittest.TestCase):
 
