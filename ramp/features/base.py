@@ -11,25 +11,23 @@ These Feature classes allow for chaining and combining feature sets to be
 iterated upon in the Configurator Factory. 
 
 '''
-
-from pandas import Series, DataFrame, concat
-import numpy as np
-import random
-import inspect
-import math
-import re
 from hashlib import md5
-from ..utils import _pprint, get_np_hashable, get_single_column, stable_repr, reindex_safe
+import math
+import random
+import re
+
+import numpy as np
+from pandas import Series, DataFrame, concat
+
+from ramp.store import Storable
+from ramp.utils import _pprint, get_np_hashable, get_single_column, stable_repr, reindex_safe
+
 
 available_features = []
 
 
-
-
-class Storable(object):
-    pass
-
 class FittedFeature(Storable):
+
     def __init__(self, feature, train_index, prep_index, prepped_data=None,
                  trained_data=None, inner_fitted_features=None, inner_fitted_feature=None):
         # compute metadata
@@ -52,7 +50,6 @@ class FittedFeature(Storable):
         self.trained_data = trained_data
         # ...
         # self.* = *
-
 
 
 class BaseFeature(object):

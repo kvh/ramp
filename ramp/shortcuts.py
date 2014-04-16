@@ -2,29 +2,45 @@ import models
 from configuration import Configuration, ConfigFactory
 from context import DataContext
 from utils import pprint_scores
-from prettytable import PrettyTable, ALL
+
 import numpy as np
+from prettytable import PrettyTable, ALL
 
 
-def fit(store=None, data=None, **kwargs):
-    return models.fit(Configuration(**kwargs), DataContext(store, data))
+# def fit(store=None, data=None, **kwargs):
+#     return models.fit(Configuration(**kwargs), DataContext(store, data))
 
 
-def predict(store=None, data=None, predict_index=None, **kwargs):
-    if predict_index is None:
-        raise ValueError("You must specify a predict_index kw arg")
-    return models.predict(Configuration(**kwargs),
-            DataContext(store, data), predict_index=predict_index)
+# def predict(store=None, data=None, predict_index=None, **kwargs):
+#     if predict_index is None:
+#         raise ValueError("You must specify a predict_index kw arg")
+#     return models.predict(Configuration(**kwargs),
+#             DataContext(store, data), predict_index=predict_index)
 
 
-def evaluate(data=None, store=None, predict_index=None, train_index=None, **kwargs):
-    if predict_index is None:
-        raise ValueError("You must specify a predict_index kw arg")
-    return models.evaluate(Configuration(**kwargs),
-            DataContext(store, data, train_index=train_index), predict_index=predict_index)
+# def evaluate(data=None, store=None, predict_index=None, train_index=None, **kwargs):
+#     if predict_index is None:
+#         raise ValueError("You must specify a predict_index kw arg")
+#     return models.evaluate(Configuration(**kwargs),
+#             DataContext(store, data, train_index=train_index), predict_index=predict_index)
 
+def cross_validate(model_def, data, folds):
+    """
+    """
+    results = []
+    for fold in folds:
+        if len(fold) == 2:
+            train_index, test_index = fold
+            prep_index = None
+        elif len(fold) == 3:
+            train_index, test_index, prep_index = fold
+        else:
+            raise ValueError("Fold is not of right dimension (%d)"%len(fold))
+        x_train, y_train, fitted_model = model_fit(model_def, data, prep_index, train_index)
+        
+    (model_def, data, prep_index=None, train_index=None)
 
-def cv(store=None, data=None, **kwargs):
+def cv(data=None, **kwargs):
     """Shortcut to cross-validate a single configuration.
 
     Config variables are passed in as keyword args, along

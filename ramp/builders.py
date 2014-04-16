@@ -1,14 +1,14 @@
 import logging
 
-import numpy as np
 from pandas import concat, DataFrame, Series, Index
+import numpy as np
 
-from configuration import *
-from features.base import BaseFeature, Feature, ConstantFeature
-from utils import _pprint, get_single_column
+from ramp.features.base import BaseFeature, Feature, ConstantFeature
+from ramp.utils import _pprint, get_single_column
 
 
 def build_target_safe(target, data, prep_index=None, train_index=None):
+    print data
     y, ff = target.build(data, prep_index, train_index)
     return get_single_column(y), ff
 
@@ -22,7 +22,7 @@ def build_feature_safe(feature, data, prep_index=None, train_index=None):
     d, ff = feature.build(data, prep_index, train_index)
 
     # sanity check index is valid
-    assert d.index.equals(data.index)
+    assert d.index.equals(data.index), "%s: %s\n%s" %(feature, d.index, data.index)
 
     # columns probably shouldn't be constant...
     if not isinstance(feature, ConstantFeature):
@@ -70,5 +70,7 @@ def apply_featureset_safe(features, data, fitted_features):
     logging.info("Done applying features")
     return concat(feature_datas, axis=1)
 
-build_featureset = build_featureset_safe
-build_target = build_target_safe
+
+
+# build_featureset = build_featureset_safe
+# build_target = build_target_safe

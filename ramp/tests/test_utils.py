@@ -1,10 +1,10 @@
 import sys
 sys.path.append('../..')
-from ramp.utils import *
-from ramp.features.base import *
 import unittest
-from pandas import *
-import tempfile
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame, Series, Index
 
 
 class TestUtils(unittest.TestCase):

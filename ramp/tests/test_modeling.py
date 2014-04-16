@@ -1,14 +1,15 @@
-import tempfile
+import os
 import sys
 sys.path.append('../..')
-from ramp.estimators import sk
-from ramp import metrics
-from ramp import *
 import unittest
-from pandas import *
-from ramp import shortcuts
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame, Series, Index
+from pandas.util.testing import assert_almost_equal
 
 from ramp.estimators.base import Probabilities
+from ramp.features.trained import Predictions
 from ramp.model_definition import ModelDefinition
 from ramp.modeling import fit_model, predict_model
 from ramp.tests.test_features import make_data
@@ -84,6 +85,31 @@ class TestBasicModeling(unittest.TestCase):
         self.assertEqual(len(y_true), 3)
         self.assertEqual(len(y_preds), 3)
 
+
+class TestNestedModeling(unittest.TestCase):
+    def setUp(self):
+        self.data = make_data(10)
+
+    def test_predictions_nest(self):
+        inner_estimator = DummyEstimator()
+        inner_model = ModelDefinition(features=[F('a')],
+                                      estimator=inner_estimator,
+                                      target=F('b'))
+        features = [F('c'), Predictions(inner_model)]
+        target = F('b')
+        estimator = DummyEstimator()
+
+        model_def = ModelDefinition(features=features,
+                                    estimator=estimator,
+                                    target=target)
+
+        x, y, fitted_model = fit_model(model_def, self.data, train_index=self.data.index[:5])
+        self.assertEqual(fitted_model.fitted_features[1].trained_data.fitted_estimator.fitx.shape, (5, 1))
+        self.assertEqual(x.shape, (len(self.data), 2))
+
+        x, y_true, y_preds = predict_model(model_def, self.data[:3], fitted_model)
+        assert_almost_equal(x[x.columns[1]].values, np.zeros(3))
+        
 
 if __name__ == '__main__':
     unittest.main()

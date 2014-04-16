@@ -50,6 +50,10 @@ class Storable(object):
     def delete(self, kp):
         pass
 
+class Storable(object):
+    pass
+
+
 class DummyStore(object):
     def save(self, k, v):
         pass

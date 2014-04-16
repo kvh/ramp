@@ -1,8 +1,9 @@
 from ramp.builders import build_featureset_safe, build_target_safe, apply_featureset_safe, apply_target_safe
 from ramp.estimators.base import FittedEstimator
+from ramp.store import Storable
 
 
-class FittedModel(object):
+class FittedModel(Storable):
 
     def __init__(self,
                  model_def,
@@ -13,6 +14,17 @@ class FittedModel(object):
         self.fitted_features = fitted_features
         self.fitted_target = fitted_target
         self.fitted_estimator = fitted_estimator
+
+
+class PackagedModel(Storable):
+    def __init__(self, fitted_model, data, data_description, evaluation_metrics=None, reports=None):
+        super(PackagedModel, self).__init__()
+        self.fitted_model = fitted_model
+        self.data_rows = len(data)
+        self.data_columns = len(data.columns)
+        self.data_description = data_description
+        self.evaluation_metrics = evaluation_metrics
+        self.reports = reports
 
 
 def fit_model(model_def, data, prep_index=None, train_index=None):
@@ -39,3 +51,19 @@ def predict_model(model_def, predict_data, fitted_model, compute_actuals=True):
         y_test = None
     y_preds = fitted_model.fitted_estimator.predict(x_test)
     return x_test, y_test, y_preds
+
+
+def build_and_package_model(model_def, data, data_description, evaluation_metrics=None,
+                            reporters=None, train_index=None, prep_index=None):
+    x_train, y_train, fitted_model = model_fit(model_def, data, prep_index, train_index)
+
+    # TODO
+    eval_ = evaluation_metrics
+    reports = []
+
+    packaged_model = PackagedModel(fitted_model,
+                                   data,
+                                   data_description,
+                                   evaluation_metrics,
+                                   reports)
+    return packaged_model
