@@ -1,23 +1,18 @@
+import os
 import sys
 sys.path.append('../..')
-from ramp import context, store
-from ramp.configuration import Configuration
+import unittest
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame, Series, Index
+from pandas.util.testing import assert_almost_equal
+from sklearn import decomposition
+
+from ramp.builders import *
 from ramp.features import base
 from ramp.features.base import *
 from ramp.features.trained import *
-import unittest
-from pandas import DataFrame, Series, Index
-import pandas
-import tempfile
-
-from sklearn import linear_model
-from sklearn import decomposition
-import numpy as np
-import os, sys
-
-from pandas.util.testing import assert_almost_equal
-
-from ramp.builders import *
 from ramp.model_definition import ModelDefinition
 
 
@@ -25,7 +20,7 @@ def strip_hash(s):
     return s[:-11]
 
 def make_data(n):
-        data = pandas.DataFrame(
+        data = pd.DataFrame(
                    np.random.randn(n, 3),
                    columns=['a','b','c'],
                    index=range(10, n+10))
@@ -139,8 +134,6 @@ class TestBasicFeature(unittest.TestCase):
         self.assertTrue(isinstance(featureset, Series))
 
 
-
-
 class DummyEstimator(object):
     def __init__(self):
         pass
@@ -186,27 +179,34 @@ class TestTrainedFeature(unittest.TestCase):
         return model_def
 
     def test_predictions(self):
-        idx = 10
         model_def = self.make_model_def_basic()
         f = Predictions(model_def)
         r, ff = f.build(self.data)
         r = r[r.columns[0]]
-        assert_almost_equal(r, np.zeros(len(self.data)))
+        assert_almost_equal(r.values, np.zeros(len(self.data)))
         fitted_model = ff.trained_data
-        # uggh fix this
+        #TODO uggh fix this
         assert_almost_equal(fitted_model.fitted_estimator.fitx.values.transpose()[1], self.data['a'].values)
         assert_almost_equal(fitted_model.fitted_estimator.predictx.values.transpose()[1], self.data['a'].values)
 
     def test_predictions_held_out(self):
-        idx = 10
         model_def = self.make_model_def_basic()
         f = Predictions(model_def)
         r, ff = f.build(self.data, train_index=self.data.index[:5])
         r = r[r.columns[0]]
-        assert_almost_equal(r, np.zeros(len(self.data)))
+        assert_almost_equal(r.values, np.zeros(len(self.data)))
         fitted_model = ff.trained_data
-        # uggh fix this
         assert_almost_equal(fitted_model.fitted_estimator.fitx.values.transpose()[1], self.data['a'].values[:5])
+        assert_almost_equal(fitted_model.fitted_estimator.predictx.values.transpose()[1], self.data['a'].values)
+
+    def test_residuals(self):
+        model_def = self.make_model_def_basic()
+        f = Residuals(model_def)
+        r, ff = f.build(self.data)
+        r = r[r.columns[0]]
+        assert_almost_equal(r.values, 0 - self.data['b'].values)
+        fitted_model = ff.trained_data
+        assert_almost_equal(fitted_model.fitted_estimator.fitx.values.transpose()[1], self.data['a'].values)
         assert_almost_equal(fitted_model.fitted_estimator.predictx.values.transpose()[1], self.data['a'].values)
 
     # def test_predictions_cv(self):
@@ -233,49 +233,59 @@ class TestTrainedFeature(unittest.TestCase):
     #     assert_almost_equal(est.predictx[1].transpose()[0], self.data['a'].values[:4])
     #     assert_almost_equal(est.predictx[2].transpose()[0], self.data['a'].values[8:])
 
-
-class TestGroupFeatures(unittest.TestCase):
-    def setUp(self):
-        self.data = make_data(10)
-        self.data['groups'] = self.data['ints'].apply(lambda x: x > 5)
-        self.ctx = context.DataContext(store.MemoryStore(verbose=True), self.data)
-
-    def test_group_agg_col(self):
-        f = GroupAggregate(['a', 'groups'], function=np.mean, data_column='a',
-                groupby_column='groups')
-        f.context = self.ctx
-
-        # test prep data
-        prep = f.get_prep_data(self.data)
-        self.assertEqual(len(prep), 2)
-        self.assertAlmostEqual(prep['global'], self.data['a'].mean())
-        g1_mean = self.data['a'][self.data['groups']].mean()
-        g2_mean = self.data['a'][-self.data['groups']].mean()
-        self.assertAlmostEqual(prep['groups'].get(True), g1_mean)
-        self.assertAlmostEqual(prep['groups'].get(False), g2_mean)
-
-        # test feature creation
-        data = get_single_column(f.create(self.ctx))
-        expected = Series(index=data.index)
-        expected[self.data['groups']] = g1_mean
-        expected[-self.data['groups']] = g2_mean
-        assert_almost_equal(data, expected)
+    def test_target_aggregation_by_factor(self):
+        self.data['grp'] = [0] * 5 + [1] * (len(self.data) - 5)
+        f = TargetAggregationByFactor(group_by='grp', func=np.mean, target='ints', min_sample=1)
+        d, ff = f.build(self.data, train_index=self.data.index[:6])
+        keys, vals = ff.trained_data
+        self.assertEqual(len(keys), 2)
+        self.assertAlmostEqual(vals[0], np.mean(range(5)))
+        self.assertAlmostEqual(vals[1], np.mean(5))
 
 
-class TestDimReduction(unittest.TestCase):
-    def setUp(self):
-        self.data = make_data(10)
-        self.ctx = context.DataContext(data=self.data)
+# class TestGroupFeatures(unittest.TestCase):
+#     def setUp(self):
+#         self.data = make_data(10)
+#         self.data['groups'] = self.data['ints'].apply(lambda x: x > 5)
+#         self.ctx = context.DataContext(store.MemoryStore(verbose=True), self.data)
 
-    def test_pca_dimred(self):
-        decomposer = decomposition.PCA(n_components=2)
-        f = combo.DimensionReduction(['a', 'b', 'c'],
-                decomposer=decomposer)
-        data = f.create(self.ctx)
-        self.assertEqual(data.shape, (len(self.data), 2))
-        decomposer = decomposition.PCA(n_components=2)
-        expected = decomposer.fit_transform(self.data[['a', 'b', 'c']])
-        assert_almost_equal(expected, data.values)
+#     def test_group_agg_col(self):
+#         f = GroupAggregate(['a', 'groups'], function=np.mean, data_column='a',
+#                 groupby_column='groups')
+#         f.context = self.ctx
+
+#         # test prep data
+#         prep = f.get_prep_data(self.data)
+#         self.assertEqual(len(prep), 2)
+#         self.assertAlmostEqual(prep['global'], self.data['a'].mean())
+#         g1_mean = self.data['a'][self.data['groups']].mean()
+#         g2_mean = self.data['a'][-self.data['groups']].mean()
+#         self.assertAlmostEqual(prep['groups'].get(True), g1_mean)
+#         self.assertAlmostEqual(prep['groups'].get(False), g2_mean)
+
+#         # test feature creation
+#         data = get_single_column(f.create(self.ctx))
+#         expected = Series(index=data.index)
+#         expected[self.data['groups']] = g1_mean
+#         expected[-self.data['groups']] = g2_mean
+#         assert_almost_equal(data, expected)
+
+
+
+# class TestDimReduction(unittest.TestCase):
+#     def setUp(self):
+#         self.data = make_data(10)
+#         self.ctx = context.DataContext(data=self.data)
+
+#     def test_pca_dimred(self):
+#         decomposer = decomposition.PCA(n_components=2)
+#         f = combo.DimensionReduction(['a', 'b', 'c'],
+#                 decomposer=decomposer)
+#         data = f.create(self.ctx)
+#         self.assertEqual(data.shape, (len(self.data), 2))
+#         decomposer = decomposition.PCA(n_components=2)
+#         expected = decomposer.fit_transform(self.data[['a', 'b', 'c']])
+#         assert_almost_equal(expected, data.values)
 
 
 

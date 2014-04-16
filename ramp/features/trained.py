@@ -1,9 +1,9 @@
-from base import ComboFeature, Feature, DummyFeature
-from .. import models
-from ..utils import make_folds, get_single_column
 from pandas import Series, DataFrame, concat
 
+from ramp.builders import build_target_safe
+from ramp.features.base import to_feature, ComboFeature, Feature, DummyFeature
 from ramp.modeling import fit_model, predict_model
+from ramp.utils import make_folds, get_single_column
 
 
 class Predictions(Feature):
@@ -59,12 +59,15 @@ class Predictions(Feature):
         #     preds = concat(preds, axis=0)
         # else:
         preds = self._predict(fitted_model, data)
-        preds = DataFrame(preds)
+        preds = DataFrame(preds, index=data.index)
         return preds
 
     def _predict(self, fitted_model, predict_data):
         x_test, y_true, y_preds = predict_model(self.model_def, predict_data, fitted_model)
         return y_preds
+
+    def make_cross_validated_models(self, data, fitted_feature):
+        pass
 
 
 class Residuals(Predictions):
@@ -76,63 +79,67 @@ class Residuals(Predictions):
 
 class FeatureSelector(ComboFeature):
 
-    def __init__(self, features, selector, target, n_keep=50, train_only=True,
-            cache=False):
-        """ train_only: if true, features are selected only using training index data (recommended)"""
+    def __init__(self, features, selector, target, n_keep=50,
+            threshold_arg=None):
+        """
+        """
         super(FeatureSelector, self).__init__(features)
         self.selector = selector
         self.n_keep = n_keep
+        self.threshold_arg = threshold_arg
         self.target = target
-        self.train_only = train_only
-        self._cacheable = cache
-        self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
+        self._name = self._name + '_%d_%s'%(threshold_arg or n_keep, selector.__class__.__name__)
 
-    def depends_on_y(self):
-        return self.train_only or super(FeatureSelector, self).depends_on_y()
-
-    def _train(self, data):
-        if self.train_only:
-            y = get_single_column(self.target.create(self.context)).reindex(self.context.train_index)
-            x = data.reindex(self.context.train_index)
-        else:
-            y = get_single_column(self.target.create(self.context))
-            x = data
-        cols = self.select(x, y)
+    def _train(self, train_datas):
+        train_data = concat(train_datas, axis=1)
+        y = build_target_safe(self.target, train_data)
+        arg = self.threshold_arg
+        if arg is None:
+            arg = self.n_keep
+        cols = self.selector(train_data, y, arg)
         return cols
-
-    def select(self, x, y):
-        return self.selector.sets(x, y, self.n_keep)
 
     def _combine_apply(self, datas, fitted_feature):
         data = concat(datas, axis=1)
-        cols = self.get_prep_data(data)
-        return data[cols]
+        selected_columns = fitted_feature.trained_data
+        return data[selected_columns]
 
 
-class FactorTargetAgg(Feature):
+class TargetAggregationByFactor(Feature):
     """
+    #TODO
     """
-    target_temp_name = '$$_target'
-
-    def __init__(self, feature, func=None, target=None, default_val='mean'):
-        super(FactorTargetAgg, self).__init__(feature)
+    def __init__(self, group_by, func=None, target=None, min_sample=10,
+            verbose=False):
+        # How terrible of a hack is this?
+        feature = DummyFeature()
+        super(TargetAggregationByFactor, self).__init__(feature)
+        self.group_by = group_by
         self.func = func
-        self.target = target
-        self.default_val = default_val
+        self.target = to_feature(target)
+        self.min_sample = min_sample
+        self.verbose = verbose
 
     def _train(self, train_data):
-        y = build_target_safe(self.target, train_data)
-        group_by = train_data.columns[0]
-        train_data[target_temp_name] = y
-        vals = train_data.groupby(c).agg({target_temp_name: self.func})[target_temp_name].to_dict()
-        del train_data[target_temp_name]
-        print vals.items()[:10]
-        return vals, y.mean()
+        y, ff = build_target_safe(self.target, train_data)
+        vc = train_data[self.group_by].value_counts()
+        keys = [k for k, v in vc.iterkv() if v >= self.min_sample]
+        train_data['__grouping'] = train_data[self.group_by].map(lambda x: x if x in keys else '__other')
+        train_data['__target'] = y
+        vals = train_data.groupby('__grouping').agg({'__target': self.func})['__target'].to_dict()
+        if self.verbose:
+            print "\nPreparing Target Aggregations:"
+            print vals.items()[:10]
+        del train_data['__target']
+        del train_data['__grouping']
+        return (keys, vals)
 
     def _apply(self, data, fitted_feature):
-        vals, mean = fitted_feature.trained_data
-        if self.default_val == 'mean':
-            default = mean
-        else:
-            default = self.default_val
-        return data.applymap(lambda x: vals.get(x, default))
+        keys, vals = fitted_feature.trained_data
+        if self.verbose:
+            print "\nLoading Target aggs"
+            print vals.items()[:10]
+            print keys[:10]
+            print data.columns
+        data = data.applymap(lambda x: vals.get(x if x in keys else '__other'))
+        return data

@@ -74,9 +74,8 @@ def get_single_column(df):
     return df[df.columns[0]]
 
 def reindex_safe(df, idx):
-    # duplicate labels don't make sense in this context
-    assert len(idx) == len(idx.unique()), "index contains %d duplicates" % len(idx) - len(idx.unique())
     if df.index.equals(idx):
+        # Don't make unnecessary copy of data
         df_idx = df
     else:
         df_idx = df.loc[idx]

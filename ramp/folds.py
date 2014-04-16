@@ -1,104 +1,115 @@
 import pandas as pd
 import numpy as np
 import random
-from builders import build_target
+from builders import build_target_safe
 
+#TODO: how to repeat folds?
 
-class WeightedSampleFolds(object):
-    
-    def __init__(self, folds, positive_proportion_test, positive_ratio_test,
-            positive_ratio_train=None, verbose=True):
-        self.folds = folds
-        self.positive_proportion_test = positive_proportion_test
-        self.positive_ratio_test = positive_ratio_test
-        self.positive_ratio_train = positive_ratio_train
-        self.verbose = verbose
-
-    def set_context(self, config, context):
-        self.context = context
-        self.config = config
+class BasicFolds(object):
+    def __init__(self, num_folds, data, repeat=1, seed=None):
+        self.num_folds = num_folds
+        self.data = data
+        self.seed = seed
+        self.repeat = repeat
 
     def __iter__(self):
-        for i in range(self.folds):
-            y = build_target(self.config.target, self.context)
-            positives = y[y != 0].index
-            negatives = y[y == 0].index
-            np = len(positives)
-            print "posssss", np, len(y)
-            nn = len(negatives)
-            test_positives = random.sample(positives, int(np * self.positive_proportion_test))
-            np_test = len(test_positives)
-            test_negatives = random.sample(negatives, int(np_test * (1 / self.positive_ratio_test  - 1)))
-            nn_test = len(test_negatives)
-            test = test_positives + test_negatives
-            if self.positive_ratio_train:
-                train_negs = random.sample(negatives - test_negatives, int((np - np_test) * (1 / self.positive_ratio_train - 1)))
-                train = train_negs + list(positives - test_positives)
-                nn_train = len(train_negs)
-            else:
-                train = y.index - test
-                nn_train = nn - nn_test
-            if self.verbose:
-                print "Weighted Sample Folds:"
-                print "\tPos\tNeg\tPos pct"
-                print "Train:\t%d\t%d\t%0.3f" % (np - np_test, nn_train, (np - np_test) / float( np - np_test + nn_train))
-                print "Test:\t%d\t%d\t%0.3f" % (np_test, nn_test, np_test / float(nn_test + np_test))
-            yield pd.Index(train), pd.Index(test)
+        n = len(self.data)
+        index = self.data.index
+        indices = range(n)
+        foldsize = n / self.num_folds
+        folds = []
+        if self.seed is not None:
+            np.random.seed(self.seed)
+        for i in range(self.repeat):
+            np.random.shuffle(indices)
+            for i in range(self.num_folds):
+                test = index[indices[i*foldsize:(i + 1)*foldsize]]
+                train = index - test
+                assert not (train & test)
+                fold = (pd.Index(train), pd.Index(test))
+                yield fold
 
 
-class SampledFolds(object):
-    
-    def __init__(self, folds, pos_train, neg_train, pos_test, neg_test,
-            verbose=True):
+
+class BinaryTargetFolds(object):
+    def __init__(self, target, data, seed=None):
+        self.seed = seed
+        self.target = target
+        self.data = data
+        self.folds = None
+        self.y = None
+
+    def compute_folds(self):
+        raise NotImplementedError
+    def build_target(self):
+        y, ff= build_target_safe(self.target, self.data)
+        self.y = y
+        self.negatives = y[~y.astype('bool')].index
+        self.positives = y[y.astype('bool')].index
+
+    def randomize(self):
+        if self.seed is not None:
+            np.random.seed(self.seed)
+        neg = pd.Index(np.random.permutation(self.negatives))
+        pos = pd.Index(np.random.permutation(self.positives))
+        return neg, pos
+
+    def __iter__(self):
+        if self.y is None:
+            self.build_target()
+        if self.folds is None:
+            self.compute_folds()
+        for fold in self.folds:
+            yield fold
+
+
+class BalancedFolds(BinaryTargetFolds):
+    def __init__(self, num_folds, target, data, seed=None):
+        self.num_folds = num_folds
+        super(BalancedFolds, self).__init__(target, data, seed)
+
+    def compute_folds(self):
+        neg, pos = self.randomize()
+        nn = len(neg) / self.num_folds
+        np = len(pos) / self.num_folds
+        folds = []
+        for i in range(self.num_folds):
+            s = i * nn
+            e = (i + 1) * nn
+            train_neg, test_neg = neg[:s] + neg[e:], neg[s:e]
+            s = i * np
+            e = (i + 1) * np
+            train_pos, test_pos = pos[:s] + pos[e:], pos[s:e]
+            fold = (train_neg + train_pos, test_neg + test_pos)
+            folds.append(fold)
         self.folds = folds
+
+
+class BootstrapFolds(BalancedFolds):
+
+    def __init__(self, num_folds, target, data, seed=None,
+                  pos_train=None, pos_test=None, neg_train=None, neg_test=None):
+        super(BootstrapFolds, self).__init__(num_folds, target, data, seed)
+        if (any([pos_train, pos_test, neg_train, neg_test])
+                and not all([pos_train, pos_test, neg_train, neg_test])):
+            raise ValueError("Please specify all four sizes, or none at all")
         self.pos_train = pos_train
         self.neg_train = neg_train
         self.pos_test = pos_test
         self.neg_test = neg_test
-        self.verbose = verbose
 
-    def set_context(self, config, context):
-        self.context = context
-        self.config = config
-
-    def __iter__(self):
-        for i in range(self.folds):
-            y = build_target(self.config.target, self.context)
-            positives = y[y != 0].index
-            negatives = y[y == 0].index
-            np = len(positives)
-            nn = len(negatives)
-            test_positives = random.sample(positives, self.pos_test)
-            test_negatives = random.sample(negatives, self.neg_test)
-            train_positives = random.sample(positives - test_positives, self.pos_train)
-            train_negatives = random.sample(negatives - test_negatives, self.neg_train)
-            test = test_positives + test_negatives
-            train = train_positives + train_negatives
-            if self.verbose:
-                print "Sampled Folds:"
-                print "\tPos\tNeg\tPos pct"
-                print "Train:\t%d\t%d\t%0.3f" % (self.pos_train, self.neg_train,
-                        self.pos_train / float( self.pos_train + self.neg_train))
-                print "Test:\t%d\t%d\t%0.3f" % (self.pos_test, self.neg_test, self.pos_test / float(self.neg_test + self.pos_test))
-            yield pd.Index(train), pd.Index(test)
+    def compute_folds(self):
+        if self.seed is not None:
+            np.random.seed(self.seed)
+        folds = []
+        for i in range(self.num_folds):
+            train_neg = pd.Index(np.random.choice(self.negatives, self.neg_train, replace=True))
+            test_neg = pd.Index(np.random.choice(self.negatives - train_neg, self.neg_test, replace=True))
+            train_pos = pd.Index(np.random.choice(self.positives, self.pos_train, replace=True))
+            test_pos = pd.Index(np.random.choice(self.positives - train_pos, self.pos_test, replace=True))
+            fold = (train_neg.append(train_pos), test_neg.append(test_pos))
+            folds.append(fold)
+        self.folds = folds
 
 
-class SequenceFolds(object):
-    
-    def __init__(self, train_size, test_size,
-            verbose=True):
-        self.train_size = train_size
-        self.test_size = test_size
-        self.verbose = verbose
-
-    def set_context(self, config, context):
-        self.context = context
-        self.config = config
-
-    def __iter__(self):
-        index = self.context.data.index
-        for i in range(self.train_size, len(index) - self.test_size):
-            train = index[:i]
-            test = index[i:i+self.test_size]
-            yield pd.Index(train), pd.Index(test)
-        
+make_default_folds = BasicFolds

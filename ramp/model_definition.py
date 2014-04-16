@@ -17,7 +17,7 @@ from features.base import BaseFeature, Feature
 from utils import _pprint, stable_repr
 import copy
 
-__all__ = ['ModelDefinition', 'ConfigFactory']
+__all__ = ['ModelDefinition', 'ModelDefinitionFactory']
 
 
 class ModelDefinition(object):
@@ -27,6 +27,8 @@ class ModelDefinition(object):
     Can be stored (pickled) and retrieved.
     """
     DEFAULT_PREDICTIONS_NAME = '$predictions'
+    params = ['target', 'features', 'estimator', 'column_subset'
+              'prediction', 'predictions_name', 'actual']
 
     def __init__(self, target=None, features=None, estimator=None,
                  column_subset=None, prediction=None, 

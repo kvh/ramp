@@ -1,69 +1,55 @@
-import models
-from configuration import Configuration, ConfigFactory
-from context import DataContext
-from utils import pprint_scores
-from prettytable import PrettyTable, ALL
 import numpy as np
+from prettytable import PrettyTable, ALL
 
+from ramp.model_definition import ModelDefinition, ModelDefinitionFactory
+from ramp import modeling
 
-def fit(store=None, data=None, **kwargs):
-    return models.fit(Configuration(**kwargs), DataContext(store, data))
+        
 
-
-def predict(store=None, data=None, predict_index=None, **kwargs):
-    if predict_index is None:
-        raise ValueError("You must specify a predict_index kw arg")
-    return models.predict(Configuration(**kwargs),
-            DataContext(store, data), predict_index=predict_index)
-
-
-def evaluate(data=None, store=None, predict_index=None, train_index=None, **kwargs):
-    if predict_index is None:
-        raise ValueError("You must specify a predict_index kw arg")
-    return models.evaluate(Configuration(**kwargs),
-            DataContext(store, data, train_index=train_index), predict_index=predict_index)
-
-
-def cv(store=None, data=None, **kwargs):
+def cross_validate(data=None, folds=None, repeat=1, **kwargs):
     """Shortcut to cross-validate a single configuration.
 
-    Config variables are passed in as keyword args, along
+    ModelDefinition variables are passed in as keyword args, along
     with the cross-validation parameters.
     """
-    fargs = {}
-    cvargs = ['folds', 'repeat', 'print_results']
-    for arg in cvargs:
+    md_kwargs = {}
+    for arg in ModelDefinition.params:
         if arg in kwargs:
-            fargs[arg] = kwargs.pop(arg)
-    return models.cv(Configuration(**kwargs),
-            DataContext(store, data), **fargs)
+            md_kwargs[arg] = kwargs.pop(arg)
+    model_def = ModelDefinition(**md_kwargs)
+    return modeling.cross_validate(model_def, data, folds, repeat=repeat, **kwargs)
 
 
-def cv_factory(store=None, data=None, **kwargs):
-    """Shortcut to iterate and cross-validate configurations.
+def cv_factory(data=None, folds=None, repeat=1, **kwargs):
+    """Shortcut to iterate and cross-validate models.
 
-    All configuration kwargs should be iterables that can be
-    passed to a ConfigFactory.
+    All ModelDefinition kwargs should be iterables that can be
+    passed to a ModelDefinitionFactory.
     """
-    cv = kwargs.pop('cv_runner', models.cv)
-    fargs = {'print_results':True}
-    cvargs = ['folds', 'repeat', 'print_results']
-    for arg in cvargs:
+    cv = kwargs.pop('cv_runner', modeling.cross_validate)
+    md_kwargs = {}
+    for arg in ModelDefinition.params:
         if arg in kwargs:
-            fargs[arg] = kwargs.pop(arg)
-    fact = ConfigFactory(Configuration(), **kwargs)
-    results = []
-    for conf in fact:
-        ctx = DataContext(store, data)
-        results.append(cv(conf, ctx, **fargs))
-    t = PrettyTable(["Configuration", "Score"])
-    t.hrules = ALL
-    t.align["Configuration"] = "l"
-    for r in results:
-        scores_dict = r['scores']
-        s = ""
-        for metric, scores in scores_dict.items():
-            s += "%s: %s" % (metric, pprint_scores(scores))
-        t.add_row([str(r['config']), s])
-    print t
-    return ctx
+            md_kwargs[arg] = kwargs.pop(arg)
+    model_def_fact = ModelDefinitionFactory(ModelDefinition(), **md_kwargs)
+    all_results = []
+    for model_def in model_def_fact:
+        results, metrics, reports = modeling.cross_validate(model_def, data, folds, repeat=repeat, **kwargs)
+        #TODO
+    #TODO
+
+
+    # for conf in fact:
+    #     ctx = DataContext(store, data)
+    #     results.append(cv(conf, ctx, **fargs))
+    # t = PrettyTable(["Configuration", "Score"])
+    # t.hrules = ALL
+    # t.align["Configuration"] = "l"
+    # for r in results:
+    #     scores_dict = r['scores']
+    #     s = ""
+    #     for metric, scores in scores_dict.items():
+    #         s += "%s: %s" % (metric, pprint_scores(scores))
+    #     t.add_row([str(r['config']), s])
+    # print t
+    # return ctx
