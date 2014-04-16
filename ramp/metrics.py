@@ -120,3 +120,34 @@ class GeneralizedMCC(Metric):
         return numer/denom
 
 
+
+class ArgMetric(Metric):
+    """
+    Implements an evaluate method that takes a Result object and an argument and
+    returns a score.
+    """
+    def score(self, result, arg):
+        raise NotImplementedError
+
+class Recall(ArgMetric):
+    """
+    Recall: True positives / (True positives + False negatives)
+    """
+    def score(self, result, threshold):
+        return result.y_test[result.evals > threshold].sum() / result.y_test.sum()
+
+
+class PositiveRate(ArgMetric):
+    """
+    Positive rate: (True positives + False positives) / Total count
+    """
+    def score(self, result, threshold):
+        return result.y_test[result.evals > threshold].count() / result.y_test.count()
+
+class PositiveRate(ArgMetric):
+    """
+    Precision: True positives / (True positives + False positives)
+    """
+    def score(self, result, threshold):
+        return result.y_test[result.evals > threshold].count() / result.y_test.count()
+
