@@ -6,92 +6,86 @@ from collections import defaultdict
 
 
 class Reporter(object):
+    def __init__(self, **kwargs):
+        self.config = {}
+        for kwarg in self.optional_kwargs():
+            self.config[kwarg] = None
+        self.config.extend(kwargs)
+        self.ret = []
 
-    def reset(self):
+    def optional_kwargs(self):
         """
-        Clear any state.
+        Used to avoid attribute errors for optional keyword arguments, this
+        function returns a list of possible keyword arguments.
         """
-
-    def set_config(self, config):
-        self.config = config
-
-    def update_with_model(self, model):
+        return ['verbose']
+    
+    def update(self, result):
+        """
+        Accepts an object of type Result and updates the report's internal representation.
+        """
         pass
-
-    def update_with_predictions(self, context, x, actuals, predictions):
-        pass
-
+    
     def report(self):
-        """ Called at end of cross-validation run. Used for reporting
-        aggregate information.
         """
-
+        Output the report. 
+        A report's output can be an image, text string, or even a web page.
+        Due to the variability in possible outputs, reports are often returned
+        via side effects.
+        """
+        return self.ret
 
 class ModelOutliers(Reporter):
     pass
 
-
 class ConfusionMatrix(Reporter):
-
-    def update_with_predictions(self, context, x, actuals, predictions):
-        cm = metrics.confusion_matrix(actuals, predictions)
-        self.config.target.context = context
+    def update(self, result):
+        # TODO: Make sure result.evals makes sense here, might need to subset.
+        cm = metrics.confusion_matrix(result.y_test, result.evals)
         try:
-            factors = self.config.target.get_prep_data()
+            factors = result.fitted_model.prep_data
         except KeyError:
             print cm
             return
         if factors:
             names = [f[0] for f in factors]
             df = DataFrame(cm, columns=names, index=names)
-            print df.to_string()
+            if config.verbose:
+                print df.to_string()
+            self.ret.append(df.to_string())
         else:
-            print cm
-
+            if config.verbose:
+                print cm
+            self.ret.append(cm)
 
 class MislabelInspector(Reporter):
-
-    def __init__(self, reported_features=None):
-        self.reported_features = reported_features or []
-
-    def update_with_model(self, model):
-        pass
-
-    def update_with_predictions(self, context, x, actuals, predictions):
-        for ind in actuals.index:
-            a, p = actuals[ind], predictions[ind]
+    def update(self, result):
+        for ind in y_test.index:
+            a, p = y_test[ind], evals[ind]
             if a != p:
-                print "-" * 20
-                print "Actual: %s\tPredicted: %s" % (a, p)
-                print x.ix[ind]
-                print context.data.ix[ind]
-                i = raw_input()
-                if i.startswith('c'):
-                    break
-
+                ret_strings = ["-" * 20]
+                ret_strings.append("Actual: %s\tPredicted: %s" % (a, p))
+                ret_strings.append(result.x_test.ix[ind])
+                ret_strings.append(result.y_test.ix[ind])
+                ret = ''.join(ret_strings, '\n')
+                if self.config['verbose']:
+                    print ret
+                self.ret.append(ret)
 
 class RFImportance(Reporter):
-    def __init__(self, verbose=False):
-        self.verbose = verbose
-        self.reset()
-
-    def reset(self):
-        self.importances = []
-
-    def update_with_model(self, model):
+    def update(self, result):
         try:
-            imps = model.feature_importances_
+            imps = result.fitted_model.feature_importances_
         except AttributeError:
             print "Warning: Model has no feature importances"
             return
         if imps is None:
             print "Warning: Model has no feature importances"
             return
-        imps = sorted(zip(imps, model.column_names),
-                reverse=True)
-        if self.verbose:
+        imps = sorted(zip(imps, result.fitted_model.column_names), reverse=True)
+        if self.config['verbose']:
             print self.print_string(imps)
-        self.importances.append(imps)
+        self.ret.append(imps)
     
     def print_string(self, imps):
         s = "Average Feature Importances\n"
@@ -100,41 +94,48 @@ class RFImportance(Reporter):
             imp, f = x
             s += '%d\t%0.4f\t%s\n'%(i+1,np.average(imp), f)
         return s
-
+    
     def report(self):
-        if not self.importances:
+        if not self.ret:
             return
         d = defaultdict(list)
-        for imps in self.importances:
+        for imps in self.ret:
             for imp, f in imps:
                 d[f].append(imp)
-        return self.print_string(sorted(zip(d.values(), d.keys()), key=lambda x: np.average(x[0]), reverse=True))
-
+        ret = sorted(zip(d.values(), d.keys()), key=lambda x: np.average(x[0]), reverse=True)
+        if self.config['verbose']:
+            self.print_string(ret)
+        return ret
 
 class PRCurve(Reporter):
-    def update_with_predictions(self, context, x, actuals, predictions):
-        p, r, t = metrics.precision_recall_curve(actuals, predictions)
-        print zip(p, r)
-
+    def update(self, result):
+        p, r, t = metrics.precision_recall_curve(result.y_test, result.evals)
+        ret = zip(p, r)
+        if self.config['verbose']:
+            print ret
+        self.ret.append()
 
 class ROCCurve(Reporter):
-    def __init__(self, show_plot=True):
-        self.show_plot = show_plot
-
-    def update_with_predictions(self, context, x, actuals, predictions):
-        fpr, tpr, thresholds = metrics.roc_curve(actuals, predictions)
-        print "ROC thresholds"
-        print "FP Rate\tTP Rate"
-        for x in zip(fpr, tpr):
-            print '%0.4f\t%0.4f' % x
-        if not self.show_plot:
-            return
+    def optional_kwargs(self):
+        return ['verbose']
+    
+    def update(self, result):
+        fpr, tpr, thresholds = metrics.roc_curve(result.y_test, result.evals)
+        self.ret.append((fpr, tpr, thresholds)]
+        if self.config['verbose']:
+            print "ROC thresholds"
+            print "FP Rate\tTP Rate"
+            for x in zip(fpr, tpr):
+                print '%0.4f\t%0.4f' % x
+    
+    def report(self):
         try:
             import pylab as pl
         except ImportError as e:
             print "ERROR: You must install matplotlib in order to see plots"
             return
-        pl.plot(fpr, tpr, label='ROC curve')
+        for fpr, tpr, thresholds in self.ret:
+            pl.plot(fpr, tpr, label='ROC curve')
         pl.plot([0, 1], [0, 1], 'k--')
         pl.xlim([0.0, 1.0])
         pl.ylim([0.0, 1.0])
@@ -144,19 +145,20 @@ class ROCCurve(Reporter):
         pl.legend(loc="lower right")
         pl.show()
 
-
 class OOBEst(Reporter):
-
     def __init__(self):
         self.scores = []
-
+    
     def update_with_model(self, model):
         try:
-            print "OOB score:", model.oob_score_
-            self.scores.append(model.oob_score_)
+            if self.config['verbose']:
+                print "OOB score:", model.oob_score_
+            self.ret.append(model.oob_score_)
         except AttributeError:
             print "Model has no OOB score"
-
+    
     def report(self):
-        if not self.scores: return
-        return "OOB Est: %s" % (pprint_scores(self.scores))
+        if not self.ret:
+            return
+        return "OOB Est: %s" % (pprint_scores(self.ret))
+
