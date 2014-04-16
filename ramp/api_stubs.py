@@ -74,6 +74,17 @@ class Result(object):
         pass
 
 
+class Reporter(object):
+    def __init__(self)
+        pass
+    
+    def update(self, result)
+        """
+        Takes object of type 'result', and updates its internal representation.
+        E.g., this could be used to update a graph once for each fold of k-fold cross-validation.
+        """
+        pass
+
 def fit_model(model_def, train_data, prep_data):
     # create training set
     x_train, fitted_features = build_featureset_safe(model_def.features, train_data, prep_data, train_data)
@@ -114,8 +125,8 @@ def cv(df, model_def, folds, evaluation_metrics, reporters):
         for metric in evaluation_metrics:
             eval = metric.evaluate(model_def, y_test, y_preds, x_test, fitted_model)
 
-        result = Result(model_def, y_test, y_preds, x_test, fitted_models, evals)
-
+        result = Result(model_def, y_test, y_preds, x_test, x_train, prep_data, fitted_models, evals)
+        
         # report
         for r in reporters:
             r.update(result)
@@ -178,6 +189,4 @@ def build_and_package_model(model_def, data, data_description, evaluation_metric
     return fitted_model, reporters, eval_
 
 
-
-
-
+# vim :set tabstop=4 noexpandtab:
