@@ -1,18 +1,21 @@
 from sklearn import metrics
 import numpy as np
-from pandas import DataFrame
+from pandas import DataFrame, Series
 from utils import pprint_scores
 from collections import defaultdict
+from prettytable import PrettyTable
 
 
 class Reporter(object):
+    defaults = dict(
+            verbose=False
+            )
+    
     def __init__(self, **kwargs):
-        self.config = {}
-        for kwarg in self.optional_kwargs():
-            self.config[kwarg] = None
+        self.config = defaults
         self.config.extend(kwargs)
         self.ret = []
-
+    
     def optional_kwargs(self):
         """
         Used to avoid attribute errors for optional keyword arguments, this
@@ -161,4 +164,49 @@ class OOBEst(Reporter):
         if not self.ret:
             return
         return "OOB Est: %s" % (pprint_scores(self.ret))
+
+
+class MetricReporter(Reporter):
+    defaults = dict(
+              verbose=False
+            , lower_quantile=.05
+            , upper_quantile=.95
+            )
+    
+    def __init__(self, metric, **kwargs):
+        """
+        Accepts a Metric object and evaluates it at each fold.
+        """
+        Reporter.__init__(self, **kwargs)
+        self.metric = metric
+    
+    def update(self, result):
+        self.ret.append(self.metric.score(result.y_test, result.evals))
+    
+    def pretty_table(self, lower_quantile=None, upper_quantile=None):
+        vals = Series(self.ret)
+        
+        lower_bound = vals.quantile(lower_quantile)
+        upper_bound = vals.quantile(upper_quantile)
+        median = vals.quantile(50)
+        mean = vals.mean()
+        
+        tab = PrettyTable([ "mean" % upper_quantile*100
+                          , "median"
+                          , "lb_%d_%%tile" % lower_quantile*100
+                          , "ub_%d_%%tile" % upper_quantile*100])
+        tab.add_row([mean, median, lower_bound, upper_bound])
+        return tab
+    
+    def _repr_html_(self):
+        return self.pretty_table().get_html_string()
+    
+    def plot(self):
+        vals = Series(self.ret)
+        vals.hist()
+    
+    def report(self, lower_quantile=None, upper_quantile=None):
+        tab = self.pretty_table(lower_quantile=lower_quantile, upper_quantile=upper_quantile)
+        return tab
+
 
