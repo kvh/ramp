@@ -35,13 +35,6 @@ class Estimator(Wrapper):
         return self.estimator.predict(x.values)
 
 
-class FittedEstimator(Wrapper):
-    def __init__(self, fitted_estimator, x_train, y_train):
-        # compute metadata
-        self.fitted_estimator = fitted_estimator
-        super(FittedEstimator, self).__init__(fitted_estimator)
-
-
 class Probabilities(Estimator):
     """
     Wraps a scikit-learn-like estimator to return probabilities (if
@@ -63,10 +56,17 @@ class Probabilities(Estimator):
     def predict(self, x):
         probs = self.estimator.predict_proba(x)
         if self.binary:
-            return [p[1] for p in probs]
+            return probs[:,1]
         return probs
 
 
 class BinaryProbabilities(Probabilities):
     def __init__(self, estimator):
         super(BinaryProbabilities, self).__init__(estimator, binary=True)
+
+
+class FittedEstimator(Wrapper):
+    def __init__(self, fitted_estimator, x_train, y_train):
+        # compute metadata
+        self.fitted_estimator = fitted_estimator
+        super(FittedEstimator, self).__init__(fitted_estimator)

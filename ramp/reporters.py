@@ -1,9 +1,13 @@
-from sklearn import metrics
-import numpy as np
-from pandas import DataFrame, Series
-from utils import pprint_scores
 from collections import defaultdict
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame, Series
 import pylab as pl
+from sklearn import metrics
+
+from ramp.utils import pprint_scores
+
 
 class Reporter(object):
     defaults = dict(
@@ -11,8 +15,9 @@ class Reporter(object):
             )
     
     def __init__(self, **kwargs):
-        self.config = defaults
-        self.config.extend(kwargs)
+        self.config = {}
+        self.config.update(self.defaults)
+        self.config.update(kwargs)
         self.ret = []
     
     def optional_kwargs(self):
@@ -37,15 +42,18 @@ class Reporter(object):
         """
         return self.ret
 
+
 class ModelOutliers(Reporter):
     pass
+
 
 class ConfusionMatrix(Reporter):
     def update(self, result):
         cm = metrics.confusion_matrix(result.y_test, result.y_preds)
-        if config.verbose:
+        if self.config['verbose']:
             print cm
         self.ret.append(cm)
+
 
 class MislabelInspector(Reporter):
     def update(self, result):
@@ -60,6 +68,7 @@ class MislabelInspector(Reporter):
                 if self.config['verbose']:
                     print ret
                 self.ret.append(ret)
+
 
 class RFImportance(Reporter):
     def update(self, result):
@@ -96,6 +105,7 @@ class RFImportance(Reporter):
             self.print_string(ret)
         return ret
 
+
 class PRCurve(Reporter):
     def update(self, result):
         p, r, t = metrics.precision_recall_curve(result.y_test, result.y_preds)
@@ -103,6 +113,7 @@ class PRCurve(Reporter):
         if self.config['verbose']:
             print ret
         self.ret.append()
+
 
 class ROCCurve(Reporter):
     def optional_kwargs(self):
@@ -133,6 +144,7 @@ class ROCCurve(Reporter):
         pl.title('ROC')
         pl.legend(loc="lower right")
         pl.show()
+
 
 class OOBEst(Reporter):
     def __init__(self):
@@ -165,15 +177,15 @@ class MetricReporter(Reporter):
         """
         Reporter.__init__(self, **kwargs)
         self.metric = metric
-    
+
     def update(self, result):
         self.ret.append(self.metric.score(result))
     
     def summary_df(self, lower_quantile=None, upper_quantile=None):
         if lower_quantile is None:
-            lower_quantile = self.config.lower_quantile
+            lower_quantile = self.config['lower_quantile']
         if upper_quantile is None:
-            upper_quantile = self.config.upper_quantile
+            upper_quantile = self.config['upper_quantile']
         
         vals = Series(self.ret)
         
@@ -221,7 +233,7 @@ class DualThresholdMetricReporter(MetricReporter):
         self.metric1 = metric1
         self.metric2 = metric2
         self.results = []
-        self.cached_curves = 0
+        self.n_cached_curves = 0
     
     @property
     def n_current_results(self):
@@ -229,11 +241,11 @@ class DualThresholdMetricReporter(MetricReporter):
     
     @property
     def thresholds(self):
-        if thresholds in self.config:
+        if 'thresholds' in self.config:
             return self.config['thresholds']
         else:
             thresholds = set()
-            for result in ret:
+            for result in self.results:
                 thresholds.update(result.y_preds)
             return list(thresholds)
     
@@ -256,11 +268,11 @@ class DualThresholdMetricReporter(MetricReporter):
             colnames = ['_'.join([metric, stat])
                         for metric in [self.metric1.name, self.metric2.name] 
                         for stat in ['Mean', 'Median', '%d_Percentile' % (100*lower_quantile), '%d_Percentile' % (upper_quantile*100)]]
-            self.ret = pd.DataFrame(columns=colnames, index=thresholds)
+            self.ret = pd.DataFrame(columns=colnames, index=thresholds, dtype='float64')
             
             for threshold in thresholds:
-                m1s = Series([self.metric1.score(result, threshold) for result in results])
-                m2s = Series([self.metric2.score(result, threshold) for result in results])
+                m1s = Series([self.metric1.score(result, threshold) for result in self.results])
+                m2s = Series([self.metric2.score(result, threshold) for result in self.results])
                 self.ret.loc[threshold] = (m1s.mean(), m1s.quantile(.5), m1s.quantile(.05), m1s.quantile(.95),
                                            m2s.mean(), m2s.quantile(.5), m2s.quantile(.05), m2s.quantile(.95))
         return self.ret
@@ -271,23 +283,24 @@ class DualThresholdMetricReporter(MetricReporter):
         fig, ax = fig_ax
         if ax is None:
             fig, ax = pl.subplots()
-        
+
         # Plot medians
-        ax.plot(curves[curves.columns[1]], 
-                curves[curves.columns[5]], 
+        ax.plot(curves[curves.columns[1]].values, 
+                curves[curves.columns[5]].values, 
                 color=color, markeredgecolor=color)
-        
+
         # Plot medians
         ax.fill_between(
-            curves[curves.columns[1]], 
-            curves[curves.columns[6]], 
-            curves[curves.columns[7]], 
-            facecolor=color, edgercolor='', interpolate=True, alpha=.33)
+            curves[curves.columns[1]].values, 
+            curves[curves.columns[6]].values, 
+            curves[curves.columns[7]].values, 
+            facecolor=color, edgecolor='', interpolate=True, alpha=.33)
         
         if fig is None:
             return ax
         else:
             return fig, ax
+
 
 def combine_dual_reports(reports):
     colors = [ '#723C95'

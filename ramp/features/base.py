@@ -20,7 +20,8 @@ import numpy as np
 from pandas import Series, DataFrame, concat
 
 from ramp.store import Storable
-from ramp.utils import _pprint, get_np_hashable, get_single_column, stable_repr, reindex_safe
+from ramp.utils import (_pprint, get_np_hashable, key_from_index,
+                        get_single_column, stable_repr, reindex_safe)
 
 
 available_features = []
@@ -31,25 +32,25 @@ class FittedFeature(Storable):
     def __init__(self, feature, train_index, prep_index, prepped_data=None,
                  trained_data=None, inner_fitted_features=None, inner_fitted_feature=None):
         # compute metadata
-        # self.train_n = len(train_data)
-        # self.prep_n = len(prep_data)
-        # self.train_data_key = key_from_index(train_data.index)
-        # self.prep_data_key = key_from_index(prep_data.index)
+        self.train_n = len(train_index)
+        self.prep_n = len(prep_index)
+        self.train_data_key = key_from_index(train_index)
+        self.prep_data_key = key_from_index(prep_index)
 
         # handle both ComboFeatures and Features naturally
         if inner_fitted_feature or isinstance(inner_fitted_features, FittedFeature):
             self.inner_fitted_feature = inner_fitted_feature
-        elif len(inner_fitted_features) == 1:
-            self.inner_fitted_feature = inner_fitted_features[0]
         elif inner_fitted_features:
-            self.inner_fitted_features = inner_fitted_features
+            if len(inner_fitted_features) == 1:
+                self.inner_fitted_feature = inner_fitted_features[0]
+            else:
+                self.inner_fitted_features = inner_fitted_features
         else:
-            raise ValueError("Please provide inner_fitted_feature(s)")
+            pass
+            # raise ValueError("Please provide inner_fitted_feature(s)")
 
         self.prepped_data = prepped_data
         self.trained_data = trained_data
-        # ...
-        # self.* = *
 
 
 class BaseFeature(object):
@@ -75,15 +76,22 @@ class BaseFeature(object):
     def unique_name(self):
         return str(self)
 
-    # def depends_on_y(self):
-    #     return False
+    def depends_on_y(self):
+        return False
 
-    # def depends_on_other_x(self):
-    #     return False
+    def depends_on_other_x(self):
+        return False
 
+    @property
+    def is_trained(self):
+        return self.depends_on_y()
 
-    def __call__(self, data, prepped_feature=None, trained_feature=None):
-        return self.apply(data, prepped_feature, trained_feature)
+    @property
+    def is_prepped(self):
+        return self.depends_on_other_x()
+
+    def __call__(self, *args, **kwargs):
+        return self.apply(*args, **kwargs)
 
     def build(self, data, prep_index=None, train_index=None):
         feature_data = self.apply(data)
@@ -136,6 +144,7 @@ class DummyFeature(BaseFeature):
 
     def apply(self, data, fitted_feature=None):
         return data
+AllDataFeature = DummyFeature
 
 
 class FeatureMetaClass(type):
@@ -249,12 +258,6 @@ class ComboFeature(BaseFeature):
         if hasattr(self, '_prepare'):
             return True
         return any([f.depends_on_other_x() for f in self.features])
-
-    def is_trained(self):
-        return self.depends_on_y()
-
-    def is_prepped(self):
-        return self.depends_on_other_x()
 
     def build(self, data, prep_index=None, train_index=None):
         if prep_index is None:
