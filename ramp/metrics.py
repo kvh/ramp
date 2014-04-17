@@ -47,14 +47,14 @@ class SKLearnMetric(Metric):
         self.kwargs = kwargs
 
     def score(self, result):
-        return self.metric(result.y_test, result.evals, **self.kwargs)
+        return self.metric(result.y_test, result.y_preds, **self.kwargs)
 
 
 # Regression
 class RMSE(Metric):
     '''Mean Squared Error: The average of the squares of the errors.'''
     def score(self):
-        return sum((result.y_test - result.evals)**2)/float(len(result.y_test))
+        return sum((result.y_test - result.y_preds)**2)/float(len(result.y_test))
 
 
 # Classification
@@ -84,8 +84,8 @@ class LogLoss(Metric):
     random distribution. https://www.kaggle.com/wiki/LogarithmicLoss
     '''
     def score(self, result):
-        return - sum(result.y_test * np.log(result.evals) + (1 - actual) * np.log(1 -
-            result.evals))/len(result.y_loss)
+        return - sum(result.y_test * np.log(result.y_preds) + (1 - actual) * np.log(1 -
+            result.y_preds))/len(result.y_loss)
 
 
 class MCC(SKLearnMetric):
@@ -111,7 +111,7 @@ class GeneralizedMCC(Metric):
         return s
     
     def score(self, result):
-        c = metrics.confusion_matrix(result.y_test, result.evals)
+        c = metrics.confusion_matrix(result.y_test, result.y_preds)
         n = c.shape[0]
         numer = sum([c[k,k] * c[m,l] - c[l,k] * c[k,m] for k in range(n) for l in range(n) for m in range(n)])
         denom = math.sqrt(self.cov(c, n)) * math.sqrt(self.cov(c, n, flip=True))
@@ -134,7 +134,7 @@ class Recall(ArgMetric):
     Recall: True positives / (True positives + False negatives)
     """
     def score(self, result, threshold):
-        return result.y_test[result.evals > threshold].sum() / result.y_test.sum()
+        return result.y_test[result.y_preds > threshold].sum() / result.y_test.sum()
 
 class WeightedRecall(ArgMetric):
     """
@@ -144,7 +144,7 @@ class WeightedRecall(ArgMetric):
         self.weight_column = weight_column
 
     def score(self, result, threshold):
-        positive_indices = result.y_test[result.evals > threshold].index
+        positive_indices = result.y_test[result.y_preds > threshold].index
         return result.original_data.loc[positive_indices][self.weight_column].sum() / \
                result.original_data.loc[result.y_test.index][self.weight_column].sum()
 
@@ -153,4 +153,4 @@ class PositiveRate(ArgMetric):
     Positive rate: (True positives + False positives) / Total count
     """
     def score(self, result, threshold):
-        return result.y_test[result.evals > threshold].count() / result.y_test.count()
+        return result.y_test[result.y_preds > threshold].count() / result.y_test.count()

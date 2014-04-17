@@ -42,28 +42,15 @@ class ModelOutliers(Reporter):
 
 class ConfusionMatrix(Reporter):
     def update(self, result):
-        # TODO: Make sure result.evals makes sense here, might need to subset.
-        cm = metrics.confusion_matrix(result.y_test, result.evals)
-        try:
-            factors = result.fitted_model.prep_data
-        except KeyError:
+        cm = metrics.confusion_matrix(result.y_test, result.y_preds)
+        if config.verbose:
             print cm
-            return
-        if factors:
-            names = [f[0] for f in factors]
-            df = DataFrame(cm, columns=names, index=names)
-            if config.verbose:
-                print df.to_string()
-            self.ret.append(df.to_string())
-        else:
-            if config.verbose:
-                print cm
-            self.ret.append(cm)
+        self.ret.append(cm)
 
 class MislabelInspector(Reporter):
     def update(self, result):
         for ind in y_test.index:
-            a, p = y_test[ind], evals[ind]
+            a, p = result.y_test.loc[ind], result.y_preds.loc[ind]
             if a != p:
                 ret_strings = ["-" * 20]
                 ret_strings.append("Actual: %s\tPredicted: %s" % (a, p))
@@ -111,7 +98,7 @@ class RFImportance(Reporter):
 
 class PRCurve(Reporter):
     def update(self, result):
-        p, r, t = metrics.precision_recall_curve(result.y_test, result.evals)
+        p, r, t = metrics.precision_recall_curve(result.y_test, result.y_preds)
         ret = zip(p, r)
         if self.config['verbose']:
             print ret
@@ -122,7 +109,7 @@ class ROCCurve(Reporter):
         return ['verbose']
     
     def update(self, result):
-        fpr, tpr, thresholds = metrics.roc_curve(result.y_test, result.evals)
+        fpr, tpr, thresholds = metrics.roc_curve(result.y_test, result.y_preds)
         self.ret.append((fpr, tpr, thresholds))
         if self.config['verbose']:
             print "ROC thresholds"
@@ -247,7 +234,7 @@ class DualThresholdMetricReporter(MetricReporter):
         else:
             thresholds = set()
             for result in ret:
-                thresholds.update(result.evals)
+                thresholds.update(result.y_preds)
             return list(thresholds)
     
     def update(self, result):
@@ -320,7 +307,7 @@ def combine_dual_reports(reports):
     current_color = 0
     for report in reports:
         current_color = (current_color + 5) % len(colors)
-        reports.plot(ax=ax, color=current_color)
+        reports.plot(ax=ax, color=colors[current_color])
     ax.show()
 
 
