@@ -27,7 +27,6 @@ def cv_factory(data=None, folds=None, repeat=1, **kwargs):
     passed to a ModelDefinitionFactory.
     """
     cv = kwargs.pop('cv_runner', modeling.cross_validate)
-    # fargs = {'print_results':True}
     md_kwargs = {}
     for arg in ModelDefinition.params:
         if arg in kwargs:

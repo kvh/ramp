@@ -151,7 +151,7 @@ class BinaryFeatureSelector(Selector):
         self.type = type
         super(BinaryFeatureSelector, self).__init__(*args, **kwargs)
 
-    def sets(self, x, y, n_keep):
+    def select(self, x, y, n_keep):
         cnts = y.value_counts()
         print "Computing binary feature scores for %d features..." % len(x.columns)
         if len(cnts) > 2:

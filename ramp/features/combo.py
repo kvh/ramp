@@ -23,6 +23,7 @@ class ComboMap(ComboFeature):
             data.columns = cols
         return data
 
+
 class Add(ComboMap):
     def _combine_apply(self, datas, fitted_feature):
         return self._combine(datas, DataFrame.add)
@@ -51,6 +52,7 @@ class Interactions(ComboFeature):
                 colnames.append('%s, %s' % (d1.name, d2.name))
                 cols.append(d)
         return concat(cols, keys=colnames, axis=1)
+
 
 class OutlierCount(ComboFeature):
     # TODO: add prep

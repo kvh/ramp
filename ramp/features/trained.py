@@ -79,37 +79,30 @@ class Residuals(Predictions):
 
 class FeatureSelector(ComboFeature):
 
-    def __init__(self, features, selector, target, n_keep=50, train_only=True,
-            cache=False):
-        """ train_only: if true, features are selected only using training index data (recommended)"""
+    def __init__(self, features, selector, target, n_keep=50,
+            threshold_arg=None):
+        """
+        """
         super(FeatureSelector, self).__init__(features)
         self.selector = selector
         self.n_keep = n_keep
+        self.threshold_arg = threshold_arg
         self.target = target
-        self.train_only = train_only
-        self._cacheable = cache
-        self._name = self._name + '_%d_%s'%(n_keep, selector.__class__.__name__)
+        self._name = self._name + '_%d_%s'%(threshold_arg or n_keep, selector.__class__.__name__)
 
-    def depends_on_y(self):
-        return self.train_only or super(FeatureSelector, self).depends_on_y()
-
-    def _train(self, data):
-        if self.train_only:
-            y = get_single_column(self.target.create(self.context)).reindex(self.context.train_index)
-            x = data.reindex(self.context.train_index)
-        else:
-            y = get_single_column(self.target.create(self.context))
-            x = data
-        cols = self.select(x, y)
+    def _train(self, train_datas):
+        train_data = concat(train_datas, axis=1)
+        y = build_target_safe(self.target, train_data)
+        arg = self.threshold_arg
+        if arg is None:
+            arg = self.n_keep
+        cols = self.selector(train_data, y, arg)
         return cols
-
-    def select(self, x, y):
-        return self.selector.sets(x, y, self.n_keep)
 
     def _combine_apply(self, datas, fitted_feature):
         data = concat(datas, axis=1)
-        cols = self.get_prep_data(data)
-        return data[cols]
+        selected_columns = fitted_feature.trained_data
+        return data[selected_columns]
 
 
 class TargetAggregationByFactor(Feature):

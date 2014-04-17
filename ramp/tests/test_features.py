@@ -134,8 +134,6 @@ class TestBasicFeature(unittest.TestCase):
         self.assertTrue(isinstance(featureset, Series))
 
 
-
-
 class DummyEstimator(object):
     def __init__(self):
         pass

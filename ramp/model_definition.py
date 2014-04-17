@@ -17,7 +17,7 @@ from features.base import BaseFeature, Feature
 from utils import _pprint, stable_repr
 import copy
 
-__all__ = ['ModelDefinition', 'ConfigFactory']
+__all__ = ['ModelDefinition', 'ModelDefinitionFactory']
 
 
 class ModelDefinition(object):

@@ -1,5 +1,6 @@
 from ramp.builders import build_featureset_safe, build_target_safe, apply_featureset_safe, apply_target_safe
 from ramp.estimators.base import FittedEstimator
+from ramp.folds import make_default_folds
 from ramp.result import Result
 from ramp.store import Storable
 
@@ -58,6 +59,9 @@ def predict_model(model_def, predict_data, fitted_model, compute_actuals=True):
 def cross_validate(model_def, data, folds, evaluation_metrics=None, reporters=None, repeat=None):
     """
     """
+    if isinstance(folds, int):
+        folds = make_default_folds(num_folds=folds, data=data)
+
     results = []
     for i in range(repeat):
         for fold in folds:
@@ -70,10 +74,12 @@ def cross_validate(model_def, data, folds, evaluation_metrics=None, reporters=No
                 raise ValueError("Fold is not of right dimension (%d)"%len(fold))
             x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
             x_test, y_true, y_preds = predict_model(model_def, data, fitted_model)
-            result = Result(model_def, x_train, y_train, x_test, y_test, y_preds, fitted_model, evaluation_metrics)
+            result = None #Result(model_def, x_train, y_train, x_test, y_test, y_preds, fitted_model, evaluation_metrics)
             results.append(result)
-            #TODO
-            ### reporter/metrics work here
+    #TODO
+    ### reporter/metrics work here
+    reports = None
+    metrics = None
     return results, metrics, reports
 
 

@@ -5,7 +5,7 @@ f = open(os.path.join(os.path.dirname(__file__), 'README.md'))
 long_description = f.read()
 f.close()
 
-version = '0.1.5'
+version = '1.0a'
 
 setup(
     name='ramp',

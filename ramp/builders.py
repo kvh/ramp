@@ -8,7 +8,6 @@ from ramp.utils import _pprint, get_single_column
 
 
 def build_target_safe(target, data, prep_index=None, train_index=None):
-    print data
     y, ff = target.build(data, prep_index, train_index)
     return get_single_column(y), ff
 
