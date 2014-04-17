@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import random
+import logging
 from builders import build_target_safe
 
 #TODO: how to repeat folds?
@@ -12,7 +13,7 @@ class BasicFolds(object):
         self.data = data
         self.seed = seed
         self.repeat = repeat
-
+    
     def __iter__(self):
         n = len(self.data)
         index = self.data.index
@@ -31,6 +32,48 @@ class BasicFolds(object):
                 yield fold
 
 
+class WatertightFolds(BasicFolds):
+    """
+    Ensure that there is no leakage across a particular factor, given by
+    `leakage_column`.
+    
+    For example, if there are multiple entries for a given user, this could be
+    used to ensure that each user is completely contained in a single fold.
+    """
+    def __init__(self, num_folds, data, leakage_column, **kwargs):
+        super(WatertightFolds, self).__init__(num_folds, data, **kwargs)
+        self.leakage_column = leakage_column
+    
+    def __iter__(self):
+        n = len(self.data)
+        index = self.data.index
+        indices = range(n)
+        foldsize = n / self.num_folds
+        folds = []
+        
+        if self.seed is not None:
+            np.random.seed(self.seed)
+        
+        for i in range(self.repeat):
+            watertight_bins = self.data.groupby(self.leakage_column)[self.data.columns[0]].count()
+            watertight_bins = watertight_bins.reindex(np.random.permutation(watertight_bins.index))
+            watertight_bins_cum = watertight_bins.cumsum()
+            for i in range(self.num_folds):
+                test_bins = watertight_bins_cum[(watertight_bins_cum >= i * foldsize) & 
+                                                (watertight_bins_cum < (i+1) * foldsize)]
+                test =index[self.data[self.leakage_column].isin(test_bins.index)]
+                train = index - test
+                
+                # Sanity checks
+                assert not (train & test)
+                if np.abs(len(test) - foldsize) > 0.05*foldsize:
+                    # Folds will not be exact in size, but a warning will be
+                    # emitted if they are far from the expected value.
+                    logging.warn("Fold deviated from expected size. Target: {target} Actual: {actual}".format(target=foldsize, actual=len(test)))
+                fold = (pd.Index(train), pd.Index(test))
+                yield fold
+
+
 class BinaryTargetFolds(object):
     def __init__(self, target, data, seed=None):
         self.seed = seed
@@ -41,8 +84,9 @@ class BinaryTargetFolds(object):
 
     def compute_folds(self):
         raise NotImplementedError
+    
     def build_target(self):
-        y, ff= build_target_safe(self.target, self.data)
+        y, ff = build_target_safe(self.target, self.data)
         self.y = y
         self.negatives = y[~y.astype('bool')].index
         self.positives = y[y.astype('bool')].index
@@ -86,7 +130,6 @@ class BalancedFolds(BinaryTargetFolds):
 
 
 class BootstrapFolds(BalancedFolds):
-
     def __init__(self, num_folds, target, data, seed=None,
                   pos_train=None, pos_test=None, neg_train=None, neg_test=None):
         super(BootstrapFolds, self).__init__(num_folds, target, data, seed)

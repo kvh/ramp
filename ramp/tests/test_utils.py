@@ -5,12 +5,24 @@ import unittest
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series, Index
+from pandas.util.testing import assert_frame_equal, assert_index_equal
 
 from ramp.features.base import F, Map
 from ramp.utils import *
 
 
 class TestUtils(unittest.TestCase):
+
+    def test_shuffle_df(self):
+        n = 100
+        df = pd.DataFrame({'a':np.random.rand(n), 
+                           'b':np.random.rand(n)})
+        df_shuffled = shuffle_df(df)
+        self.assertEqual(df.shape, df_shuffled.shape)
+        self.assertNotEqual(tuple(df['a']), tuple(df_shuffled['a']))
+        self.assertNotEqual(tuple(df['b']), tuple(df_shuffled['b']))
+        self.assertNotEqual(tuple(df.index), tuple(df_shuffled.index))
+        assert_frame_equal(df.sort(), df_shuffled.sort())
 
     def test_np_hashes(self):
         a = np.random.randn(20)
