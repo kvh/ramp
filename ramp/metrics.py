@@ -126,31 +126,45 @@ class ArgMetric(Metric):
     Implements an evaluate method that takes a Result object and an argument and
     returns a score.
     """
-    def score(self, result, arg):
+    def __init__(self, arg=None):
+        self.arg = arg
+        super(ArgMetric, self).__init__()
+
+    def score(self, result, arg=None):
         raise NotImplementedError
+
 
 class Recall(ArgMetric):
     """
     Recall: True positives / (True positives + False negatives)
     """
-    def score(self, result, threshold):
-        return result.y_test[result.y_preds > threshold].sum() / result.y_test.sum()
+    def score(self, result, threshold=None):
+        if threshold is None:
+            threshold = self.arg
+        return result.y_test[result.y_preds >= threshold].sum() / float(result.y_test.sum())
+
 
 class WeightedRecall(ArgMetric):
     """
     Recall: Sum of weight column @ true positives  / sum of weight column @ (True positives + False negatives)
     """
-    def __init__(self, weight_column):
+    def __init__(self, arg=None, weight_column=None):
         self.weight_column = weight_column
+        super(WeightedRecall, self).__init__(arg)
 
-    def score(self, result, threshold):
+    def score(self, result, threshold=None):
+        if threshold is None:
+            threshold = self.arg
         positive_indices = result.y_test[result.y_preds > threshold].index
         return result.original_data.loc[positive_indices][self.weight_column].sum() / \
-               result.original_data.loc[result.y_test.index][self.weight_column].sum()
+               float(result.original_data.loc[result.y_test.index][self.weight_column].sum())
+
 
 class PositiveRate(ArgMetric):
     """
     Positive rate: (True positives + False positives) / Total count
     """
-    def score(self, result, threshold):
-        return result.y_test[result.y_preds > threshold].count() / result.y_test.count()
+    def score(self, result, threshold=None):
+        if threshold is None:
+            threshold = self.arg
+        return result.y_test[result.y_preds > threshold].count() / float(result.y_test.count())
