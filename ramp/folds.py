@@ -59,13 +59,17 @@ class WatertightFolds(BasicFolds):
             watertight_bins = watertight_bins.reindex(np.random.permutation(watertight_bins.index))
             watertight_bins_cum = watertight_bins.cumsum()
             for i in range(self.num_folds):
-                test_bins = user_payments['user_id'][user_payments['cum_n'] >= i * foldsize & 
-                                                     user_payments['cum_n'] < (i+1) * foldsize ]
-                test = self.data[self.leakage_column].isin(test_bins.index).index
-                if np.abs(len(test) - foldsize) > 0.05*foldsize:
-                    logging.warn("Fold deviated from expected size. Target: {target} Actual: {actual}".format(target=foldsize, actual=len(test)))
+                test_bins = watertight_bins_cum[(watertight_bins_cum >= i * foldsize) & 
+                                                (watertight_bins_cum < (i+1) * foldsize)]
+                test =index[self.data[self.leakage_column].isin(test_bins.index)]
                 train = index - test
+                
+                # Sanity checks
                 assert not (train & test)
+                if np.abs(len(test) - foldsize) > 0.05*foldsize:
+                    # Folds will not be exact in size, but a warning will be
+                    # emitted if they are far from the expected value.
+                    logging.warn("Fold deviated from expected size. Target: {target} Actual: {actual}".format(target=foldsize, actual=len(test)))
                 fold = (pd.Index(train), pd.Index(test))
                 yield fold
 

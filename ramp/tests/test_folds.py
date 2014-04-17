@@ -12,12 +12,36 @@ from ramp.utils import *
 
 
 class TestFolds(unittest.TestCase):
+    def test_watertight_folds(self):
+        n   = 100000
+        n_u = 10000
+        r   = 4
+        n_folds = 10
+        df = pd.DataFrame({'a': np.arange(n), 
+                           'u': np.random.randint(1, n_u, n)})
+        
+        wt_folds = WatertightFolds(n_folds, df, 'u', seed=1)
+        folds = list(wt_folds)
+        self.assertEqual(len(folds), n_folds)
+        te = pd.Index([])
+        u_sofar = set()
+        for train, test in folds:
+            self.assertFalse(train & test)
+            self.assertFalse(te & test)
+            self.assertEqual(len(u_sofar.intersection(df.loc[test])), 0)
+            te = te | test
+            u_sofar = u_sofar.union(df.loc[test]['u'])
+        # ensure all instances were used in test 
+        # TODO, currently failing
+        #self.assertEqual(len(te), n)
+
 
     def test_balanced_folds(self):
         n = 100000
         r = 4
         n_folds = 4
-        df = pd.DataFrame({'a':np.arange(n), 'y':np.hstack([np.ones(n/r), np.zeros(n/r * (r -1))])})
+        df = pd.DataFrame({'a':np.arange(n), 
+                           'y':np.hstack([np.ones(n/r), np.zeros(n/r * (r -1))])})
         balanced_folds = BalancedFolds(n_folds, F('y'), df, seed=1)
         folds = list(balanced_folds)
         self.assertEqual(len(folds), n_folds)
@@ -35,7 +59,7 @@ class TestFolds(unittest.TestCase):
             self.assertAlmostEqual(pos_ratio, 1. / r)
         # ensure all instances were used in test
         self.assertEqual(len(te), n)
-
+    
     def test_bootstrapped_folds(self):
         n = 10000
         r = 4
