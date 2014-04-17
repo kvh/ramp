@@ -278,9 +278,10 @@ class DualThresholdMetricReporter(MetricReporter):
                                            m2s.mean(), m2s.quantile(.5), m2s.quantile(.05), m2s.quantile(.95))
         return self.ret
     
-    def plot(self, ax=None, color='red', **kwargs):
+    def plot(self, fig_ax=(None, None), color='red', **kwargs):
         curves = self.summary_df()
         
+        fig, ax = fig_ax
         if ax is None:
             fig, ax = pl.subplots()
         
@@ -301,5 +302,25 @@ class DualThresholdMetricReporter(MetricReporter):
         else:
             return fig, ax
 
-def combine_reports():
-    return NotImplementedError
+def combine_dual_reports(reports):
+    colors = [ '#723C95'
+             , '#5697D5'
+             , '#9BCECA'
+             , '#92BC45'
+             , '#C7D632'
+             , '#F6E400'
+             , '#ECB61B'
+             , '#E08C2C'
+             , '#D3541F'
+             , '#CD1E20'
+             , '#C64A98'
+             , '#A34F9B']
+    
+    fig, ax = pl.subplots()
+    current_color = 0
+    for report in reports:
+        current_color = (current_color + 5) % len(colors)
+        reports.plot(ax=ax, color=current_color)
+    ax.show()
+
+
