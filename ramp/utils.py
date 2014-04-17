@@ -32,6 +32,15 @@ def pprint_scores(scores):
     return s
 
 
+def shuffle_df(df):
+    """
+    return:
+        pandas.DataFrame | shuffled dataframe
+    params:
+        df: pandas.DataFrame
+    """
+    return df.reindex(np.random.permutation(df.index))
+
 def make_folds(index, nfolds=5, repeat=1, shuffle=True):
     n = len(index)
     indices = range(n)
