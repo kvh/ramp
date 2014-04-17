@@ -1,11 +1,12 @@
 import sys
 sys.path.append('../..')
-from ramp.estimators import sk
-from ramp import metrics
-from ramp import *
 import unittest
-from pandas import *
-import tempfile
+
+import numpy as np
+import pandas as pd
+from sklearn import linear_model
+
+from ramp.estimators import Probabilities, BinaryProbabilities
 from ramp import shortcuts
 from ramp.tests.test_features import make_data
 
@@ -13,6 +14,7 @@ from ramp.tests.test_features import make_data
 class DummyProbEstimator(object):
     def __init__(self, n_clses):
         self.n_clses = n_clses
+        self._coefs = "coefs"
 
     def fit(self, x, y):
         pass
@@ -21,32 +23,48 @@ class DummyProbEstimator(object):
         return np.zeros((len(x), self.n_clses))
 
 
-class TestSKEstimators(unittest.TestCase):
+class TestEstimators(unittest.TestCase):
     def setUp(self):
         self.data = make_data(10)
 
-    #def test_probabilities(self):
-        #est = sk.Probabilities(DummyProbEstimator(2))
-        #result = shortcuts.predict(
-                #store=store.MemoryStore(),
-                #data=self.data, model=est,
-                #predict_index=self.data.index,
-                #target='y', metrics=[metrics.AUC()], features=['a'])
-        #self.assertEqual(preds.shape, (10, 2))
+    def test_probabilities(self):
+        inner_est = DummyProbEstimator(3)
+        est = Probabilities(inner_est)
+
+        # test attr wrap
+        self.assertEqual(est._coefs, inner_est._coefs)
+        self.assertRaises(AttributeError, getattr, est, 'nope_not_attr')
+
+        preds = est.predict(self.data.values)        
+        self.assertEqual(preds.shape, (10, 3))
 
     def test_binary_probabilities(self):
-        est = sk.BinaryProbabilities(DummyProbEstimator(2))
-        result = shortcuts.predict(
-                store=store.MemoryStore(),
-                data=self.data, model=est,
-                predict_index=self.data.index,
-                target='y', metrics=[metrics.AUC()], features=['a'])
-        self.assertEqual(len(result['predictions']), 10)
-        t = np.zeros(10)
-        t[0] = 1
-        metrics.AUC().score(t, result['predictions'])
+        inner_est = DummyProbEstimator(2)
+        est = BinaryProbabilities(inner_est)
 
+        # test attr wrap
+        self.assertEqual(est._coefs, inner_est._coefs)
 
+        preds = est.predict(self.data.values)        
+        self.assertEqual(preds.shape, (10, ))
+
+    def test_sklearn_probabilities(self):
+        # test multi-class
+        self.data['target'] = [0] * 5 + [1] * 3 + [2] * 2
+        inner_est = linear_model.LogisticRegression()
+        est = Probabilities(inner_est)
+        x = self.data[['a', 'b']]
+        est.fit(x, self.data.target)
+        preds = est.predict(x)
+        self.assertEqual(preds.shape, (10, 3))
+
+        # test binary, single output
+        self.data['target'] = [0] * 5 + [1] * 5
+        est = BinaryProbabilities(inner_est)
+        x = self.data[['a', 'b']]
+        est.fit(x, self.data.target)
+        preds = est.predict(x)
+        self.assertEqual(preds.shape, (10, ))
 
 if __name__ == '__main__':
     unittest.main()

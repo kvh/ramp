@@ -110,7 +110,7 @@ class TopicModelFeature(Feature):
         dct, tfidf, lsi = self.make_engine(docs)
         return dct, tfidf, lsi
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         data = get_single_column(data)
         vecs = None #self.load('topic_vecs')
         if vecs is None or self.force:
@@ -190,7 +190,7 @@ class TFIDF(Feature):
         #         maxterms,
         #         maxdocs)
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         docs = list(data)
         dct = self.dictionary.get_dict(self.context, docs)
         tfidf = self.dictionary.get_tfidf(self.context, docs)
@@ -222,7 +222,7 @@ class NgramCounts(Feature):
             print dct
         return dct
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         dct = self.get_prep_data(data)
         data = get_single_column(data)
         docs = [dct.doc2bow(d) for d in data]
@@ -268,7 +268,7 @@ class SelectNgramCounts(NgramCounts):
     def select(self, x, y):
         return self.selector.sets(x, y, self.n_keep)
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         # TODO: not sure how to prep this... need to recreate 
         # inherited feature to get at its prepped data
         data = super(SelectNgramCounts, self)._create(data)
@@ -285,7 +285,7 @@ class TreebankTokenize(Feature):
 
     tokenizer = treebank_tokenizer
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         if not self.tokenizer:
             raise NameError("TreebankTokenize requires nltk to be installed")
         return data.applymap(self.tokenizer.tokenize)
@@ -300,7 +300,7 @@ class Ngrams(Feature):
         super(Ngrams, self).__init__(feature)
         self._name += '_%d'%ngrams
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.applymap(lambda x: ngrams(x, self.ngrams))
 
 
@@ -317,7 +317,7 @@ class CharGrams(Feature):
         super(CharGrams, self).__init__(feature)
         self._name += '_%d' % chars
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.applymap(lambda x: set(chargrams(x, self.chars)))
 
 
@@ -326,7 +326,7 @@ class Tokenizer(Feature):
         super(Tokenizer, self).__init__(feature)
         self.tokenizer = tokenizer
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.applymap(self.tokenizer)
 
 
@@ -335,7 +335,7 @@ class StringJoin(ComboFeature):
         super(StringJoin, self).__init__(features)
         self.sep = sep
 
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         datas = [get_single_column(d) for d in datas]
         d = []
         for x in zip(*datas):
@@ -346,7 +346,7 @@ class StringJoin(ComboFeature):
 
 # import syllables
 # class SyllableCount(Feature):
-#     def _create(self, data):
+#     def _apply(self, data, fitted_feature):
 #         return data.map(lambda txt: sum([syllables.count(w) for w in txt.split()]))
 
 def jaccard(a, b):
@@ -378,7 +378,7 @@ class ClosestDoc(Feature):
             scores.append(score)
         return scores
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return Series(self.score(data), index=data.index, name=data.name)
 
 
@@ -401,7 +401,7 @@ class SpellingErrorCount(Feature):
         super(SpellingErrorCount, self).__init__(feature)
         self.exemptions = exemptions if exemptions else set()
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(lambda x : count_spell_errors(x, self.exemptions))
 
 
@@ -434,12 +434,12 @@ class NonDictCount(Feature):
         super(NonDictCount, self).__init__(feature)
         self.exemptions = exemptions if exemptions else set()
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(lambda toks: nondict_w_exemptions(toks, self.exemptions))
 
 class RemoveNonDict(Feature):
     """Expects tokens"""
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(
                 lambda toks: [t for t in toks if not wordnet.synsets(t) and t not in wordlist]
                 )
@@ -453,14 +453,14 @@ def expanded_tokenize(s):
 
 class ExpandedTokens(Feature):
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(expanded_tokens)
 
 class LongwordCount(Feature):
     def __init__(self, feature, lengths=[6, 7, 8]):
         super(LongwordCount, self).__init__(feature)
         self.lengths = lengths
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         cols = []
         for length in self.lengths:
             cols.append(data.map(lambda tokens: sum([len(t) > length for t in
@@ -470,7 +470,7 @@ class LongwordCount(Feature):
 
 
 class SentenceCount(Feature):
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(
                 lambda x: len(sent_tokenizer.tokenize(x)) + 1)
 
@@ -480,7 +480,7 @@ class SentenceSlice(Feature):
         self.start = start
         self.end = end
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         if self.end is None:
             return data.map(
                     lambda x: ' '.join(sent_tokenizer.tokenize(x)[self.start:])
@@ -490,18 +490,18 @@ class SentenceSlice(Feature):
                 )
 
 class SentenceLength(Feature):
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(
                 lambda x: float(len(x))/(len(sent_tokenizer.tokenize(x)) + 1))
 
 class CapitalizationErrors(Feature):
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(
                 lambda x: len([1 for s in sent_tokenizer.tokenize(x) if
                     s and s[0]!=s[0].upper() or ' i ' in s]))
 
 class LongestSentence(Feature):
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(
                 lambda x: max(map(len, sent_tokenizer.tokenize(x)))
                 )
@@ -513,14 +513,14 @@ class LongestWord(Feature):
                 )
 
 class VocabSize(Feature):
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(lambda tokens: len(set(tokens)))
 
 class KeywordCount(Feature):
     def __init__(self, feature, words):
         super(KeywordCount, self).__init__(feature)
         self.words = set(words)
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         cols = []
         for word in self.words:
             cols.append(data.map(lambda tokens: tokens.count(word)))
@@ -550,7 +550,7 @@ def char_kl(txt):
 
 
 class CharFreqKL(Feature):
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.map(char_kl)
 
 class WeightedWordCount(Feature):
@@ -571,7 +571,7 @@ class NgramCompare(NgramCounts):
         super(NgramCompare, self).__init__(feature, *args, **kwargs)
         self.tokenizer = tokenize_with_sentinels
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         raw_docs = [s for s in nltk.corpus.gutenberg.raw().split('[') if len(s) > 10000]
         docs = self.make_docs(raw_docs, 1)
         dct1 = self.dictionary(docs)

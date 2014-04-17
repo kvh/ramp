@@ -32,6 +32,15 @@ def pprint_scores(scores):
     return s
 
 
+def shuffle_df(df):
+    """
+    return:
+        pandas.DataFrame | shuffled dataframe
+    params:
+        df: pandas.DataFrame
+    """
+    return df.reindex(np.random.permutation(df.index))
+
 def make_folds(index, nfolds=5, repeat=1, shuffle=True):
     n = len(index)
     indices = range(n)
@@ -69,9 +78,24 @@ def get_np_hashable(obj):
         return np.getbuffer(obj.flatten())
 
 
+def key_from_index(idx):
+    return get_np_hash(idx.values)
+    
+
 def get_single_column(df):
     assert len(df.columns) == 1
     return df[df.columns[0]]
+
+
+def reindex_safe(df, idx):
+    if df.index.equals(idx):
+        # Don't make unnecessary copy of data
+        df_idx = df
+    else:
+        df_idx = df.loc[idx]
+        # ditto
+        assert len(df_idx) == len(idx)
+    return df_idx
 
 
 re_object_repr = re.compile(r'\sat\s\w+>')

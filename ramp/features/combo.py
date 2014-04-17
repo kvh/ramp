@@ -23,22 +23,23 @@ class ComboMap(ComboFeature):
             data.columns = cols
         return data
 
+
 class Add(ComboMap):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         return self._combine(datas, DataFrame.add)
 class Divide(ComboMap):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         return self._combine(datas, DataFrame.div)
 class Multiply(ComboMap):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         return self._combine(datas, DataFrame.mul)
 class Sub(ComboMap):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         return self._combine(datas, DataFrame.sub)
 
 
 class Interactions(ComboFeature):
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         cols = []
         colnames = []
         data = concat(datas, axis=1)
@@ -52,32 +53,33 @@ class Interactions(ComboFeature):
                 cols.append(d)
         return concat(cols, keys=colnames, axis=1)
 
-class OutlierCount(ComboFeature):
-    # TODO: add prep
-    def __init__(self, features, stdevs=5):
-        super(OutlierCount, self).__init__(features)
-        self.stdevs = stdevs
-        self._name = self._name + '_%d'%stdevs
 
-    def is_outlier(self, x, mean, std):
-        return int(abs((x-mean)/std) > self.stdevs)
+# class OutlierCount(ComboFeature):
+#     # TODO: add prep
+#     def __init__(self, features, stdevs=5):
+#         super(OutlierCount, self).__init__(features)
+#         self.stdevs = stdevs
+#         self._name = self._name + '_%d'%stdevs
 
-    def combine(self, datas):
-        count = DataFrame(np.zeros(len(datas[0])), index=datas[0].index)
-        eps = 1.0e-8
-        col_names = []
-        for data in datas:
-            for col in data.columns:
-                d = data[col]
-                m = d.mean()
-                s = d.std()
-                if s < eps:
-                    continue
-                d = d.map(lambda x: self.is_outlier(x, m, s))
-                col_names.append(col)
-                count = count.add(d, axis=0)
-        count.columns = [','.join(col_names)]
-        return count
+#     def is_outlier(self, x, mean, std):
+#         return int(abs((x-mean)/std) > self.stdevs)
+
+#     def _combine_apply(self, datas, fitted_feature):
+#         count = DataFrame(np.zeros(len(datas[0])), index=datas[0].index)
+#         eps = 1.0e-8
+#         col_names = []
+#         for data in datas:
+#             for col in data.columns:
+#                 d = data[col]
+#                 m = d.mean()
+#                 s = d.std()
+#                 if s < eps:
+#                     continue
+#                 d = d.map(lambda x: self.is_outlier(x, m, s))
+#                 col_names.append(col)
+#                 count = count.add(d, axis=0)
+#         count.columns = [','.join(col_names)]
+#         return count
 
 
 class DimensionReduction(ComboFeature):
@@ -85,16 +87,18 @@ class DimensionReduction(ComboFeature):
         super(DimensionReduction, self).__init__(feature)
         self.decomposer = decomposer
 
-    def _prepare(self, data):
-        self.decomposer.fit(data.values)
-        return {'decomposer': self.decomposer}
+    def _prepare(self, prep_datas):
+        prep_data = concat(prep_datas, axis=1)
+        self.decomposer.fit(prep_data.values)
+        return self.decomposer
 
-    def combine(self, datas):
+    def _combine_apply(self, datas, fitted_feature):
         data = concat(datas, axis=1)
-        decomposer = self.get_prep_data(data)['decomposer']
+        decomposer = fitted_feature.prepped_data
         decomp = decomposer.transform(data)
         df = DataFrame(decomp,
                     columns=['Vector%d'%i for i in range(decomp.shape[1])],
                     index=data.index)
         return df
+
 

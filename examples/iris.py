@@ -1,12 +1,16 @@
-import pandas
-from ramp import *
 import urllib2
+
+import pandas as pd
 import sklearn
 from sklearn import decomposition
 
+import ramp
+from ramp.features import *
+
+print ramp.__version__
 
 # fetch and clean iris data from UCI
-data = pandas.read_csv(urllib2.urlopen(
+data = pd.read_csv(urllib2.urlopen(
     "http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data"))
 data = data.drop([149]) # bad line
 columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'class']
@@ -31,20 +35,21 @@ expanded_features = (
 # run 5 fold cross-validation on each and print the results.
 # We define 2 models and 4 feature sets, so this will be
 # 4 * 2 = 8 models tested.
-shortcuts.cv_factory(
+ramp.shortcuts.cv_factory(
     data=data,
+    folds=5,
 
     target=[AsFactor('class')],
-    metrics=[
-        [metrics.GeneralizedMCC()],
-        ],
-    # report feature importance scores from Random Forest
-    reporters=[
-        [reporters.RFImportance()],
-        ],
+    # metrics=[
+    #     [metrics.GeneralizedMCC()],
+    #     ],
+    # # report feature importance scores from Random Forest
+    # reporters=[
+    #     [reporters.RFImportance()],
+    #     ],
 
     # Try out two algorithms
-    model=[
+    estimator=[
         sklearn.ensemble.RandomForestClassifier(
             n_estimators=20, compute_importances=True),
         sklearn.linear_model.LogisticRegression(),
@@ -58,7 +63,7 @@ shortcuts.cv_factory(
         [trained.FeatureSelector(
             expanded_features,
             # use random forest's importance to trim
-            selectors.RandomForestSelector(classifier=True),
+            ramp.selectors.RandomForestSelector(classifier=True),
             target=AsFactor('class'), # target to use
             n_keep=5, # keep top 5 features
             )],

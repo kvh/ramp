@@ -11,18 +11,53 @@ These Feature classes allow for chaining and combining feature sets to be
 iterated upon in the Configurator Factory. 
 
 '''
-
-from pandas import Series, DataFrame, concat
-import numpy as np
-import random
-import inspect
-import math
-import re
 from hashlib import md5
-from ..utils import _pprint, get_np_hashable, get_single_column, stable_repr
+import math
+import random
+import re
+
+import numpy as np
+from pandas import Series, DataFrame, concat
+
+from ramp.store import Storable
+from ramp.utils import (_pprint, get_np_hashable, key_from_index,
+                        get_single_column, stable_repr, reindex_safe)
+
+
+available_features = []
+
+
+class FittedFeature(Storable):
+
+    def __init__(self, feature, train_index, prep_index, prepped_data=None,
+                 trained_data=None, inner_fitted_features=None, inner_fitted_feature=None):
+        # compute metadata
+        self.train_n = len(train_index)
+        self.prep_n = len(prep_index)
+        self.train_data_key = key_from_index(train_index)
+        self.prep_data_key = key_from_index(prep_index)
+
+        # handle both ComboFeatures and Features naturally
+        if inner_fitted_feature or isinstance(inner_fitted_features, FittedFeature):
+            self.inner_fitted_feature = inner_fitted_feature
+        elif inner_fitted_features:
+            if len(inner_fitted_features) == 1:
+                self.inner_fitted_feature = inner_fitted_features[0]
+            else:
+                self.inner_fitted_features = inner_fitted_features
+        else:
+            pass
+            # raise ValueError("Please provide inner_fitted_feature(s)")
+
+        self.prepped_data = prepped_data
+        self.trained_data = trained_data
 
 
 class BaseFeature(object):
+    """
+    BaseFeature wraps a string corresponding to a
+    DataFrame column.
+    """
 
     _cacheable = True
 
@@ -47,9 +82,30 @@ class BaseFeature(object):
     def depends_on_other_x(self):
         return False
 
-    def create(self, context, *args, **kwargs):
-        return DataFrame(context.data[self.feature],
-                columns=[self.feature])
+    @property
+    def is_trained(self):
+        return self.depends_on_y()
+
+    @property
+    def is_prepped(self):
+        return self.depends_on_other_x()
+
+    def __call__(self, *args, **kwargs):
+        return self.apply(*args, **kwargs)
+
+    def build(self, data, prep_index=None, train_index=None):
+        feature_data = self.apply(data)
+        return feature_data, None
+
+    def apply(self, data, fitted_feature=None):
+        return DataFrame(data[self.feature],
+                         columns=[self.feature])
+
+    def prepare(self, prep_data):
+        raise NotImplementedError
+
+    def train(self, train_data):
+        raise NotImplementedError
 
     def __add__(self, other):
         return combo.Add([self, other])
@@ -74,11 +130,10 @@ class ConstantFeature(BaseFeature):
             raise ValueError('Constant feature must be a number')
         self.feature = feature
 
-    def create(self, context, *args, **kwargs):
-        return DataFrame(
-                [self.feature] * len(context.data),
-                index=context.data.index,
-                columns=['%s' % self.feature])
+    def apply(self, data, fitted_feature=None):
+        return DataFrame(np.repeat(self.feature, len(data)),
+                         index=data.index,
+                         columns=['%s' % self.feature])
 
 
 class DummyFeature(BaseFeature):
@@ -87,14 +142,30 @@ class DummyFeature(BaseFeature):
     def __init__(self):
         self.feature = ''
 
-    def create(self, context, *args, **kwargs):
-        return context.data
+    def apply(self, data, fitted_feature=None):
+        return data
+AllDataFeature = DummyFeature
+
+
+class FeatureMetaClass(type):
+    def __new__(meta, name, bases, dct):
+        available_features.append(name)
+        return super(FeatureMetaClass, meta).__new__(meta, name, bases, dct)
+
+    def __call__(cls, *args, **kwargs):
+        for arg in list(args) + kwargs.values():
+            if hasattr(arg, '__call__') and getattr(arg, '__name__', 0) == (lambda: None).__name__:
+                Warning("Feature's should not be passed anonymous (lambda) functions"
+                        " as these cannot be serialized reliably")
+        return type.__call__(cls, *args, **kwargs)
 
 
 class ComboFeature(BaseFeature):
     """
     Abstract base for more complex features
     """
+
+    __metaclass__ = FeatureMetaClass
 
     hash_length = 8
     _cacheable = True
@@ -106,6 +177,7 @@ class ComboFeature(BaseFeature):
         feature and parameters on _name attribute.
         """
         self.features = []
+        # handle single feature as well
         if not isinstance(features, list) and not isinstance(features, tuple):
             features = [features]
         for feature in features:
@@ -114,17 +186,18 @@ class ComboFeature(BaseFeature):
             if isinstance(feature, int) or isinstance(feature, float):
                 feature = ConstantFeature(feature)
             self.features.append(feature)
+        self.set_name()
+
+    def set_name(self):
         cname = self.__class__.__name__
         if cname.endswith('Feature'):
             cname = cname[:-7]
+        # _name attribute is for human-readable strings
         self._name = cname
 
     def __getstate__(self):
         # shallow copy dict and keep references
         dct = self.__dict__.copy()
-        # HACK remove temporary state
-        if 'context' in dct:
-            del dct['context']
         return dct
 
     def __repr__(self):
@@ -146,7 +219,8 @@ class ComboFeature(BaseFeature):
 
     def __str__(self):
         """
-        A readable version of this feature (and its contained features)
+        A readable version of this feature (and its contained features).
+        Should be as short as possible.
         """
         f = ', '.join([str(f) for f in self.features])
         if self._name:
@@ -176,6 +250,8 @@ class ComboFeature(BaseFeature):
                     hsh)
 
     def depends_on_y(self):
+        if hasattr(self, '_train'):
+            return True
         return any([f.depends_on_y() for f in self.features])
 
     def depends_on_other_x(self):
@@ -183,97 +259,67 @@ class ComboFeature(BaseFeature):
             return True
         return any([f.depends_on_other_x() for f in self.features])
 
-    def create_data(self, force):
+    def build(self, data, prep_index=None, train_index=None):
+        if prep_index is None:
+            prep_index = data.index
+        if train_index is None:
+            train_index = data.index
         datas = []
-        # recurse
+        fitted_features = []
         for feature in self.features:
-            data = feature.create(self.context, force)
-            # copy the dataframe to isolate side effects
-            # TODO: is this really necessary? Can we enforce immutability?
-            #data = DataFrame(data.copy())
-            datas.append(data)
-        # actually apply the feature
-        data = self._create(datas)
-        return data
+            feature_data, ff = feature.build(data, prep_index, train_index)
+            datas.append(feature_data)
+            fitted_features.append(ff)
+        ff = FittedFeature(self,
+                           prep_index=prep_index,
+                           train_index=train_index,
+                           inner_fitted_features=fitted_features)
+        ff.prepped_data = self.prepare([reindex_safe(d, prep_index) for d in datas])
+        ff.trained_data = self.train([reindex_safe(d, train_index) for d in datas])
+        if len(datas) == 1:
+            feature_data = self._apply(datas[0], ff)
+        else:
+            feature_data = self._combine_apply(datas, ff)
+        feature_data = self._prepend_feature_name_to_all_columns(feature_data)
+        return feature_data, ff
 
-    def get_prep_key(self):
-        """
-        Stable, unique key for this feature and a given prep_index and train_index.
-        we key on train_index as well because prep data may involve training.
-        """
-        if not self.context.key_on_indices():
-            return self.unique_name + '__prep__'
-        s = get_np_hashable(self.context.prep_index)
-        tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
-        return self.unique_name + '__prep__' + md5('%s--%s' % (s, tindex)).hexdigest()
-
-    def get_prep_data(self, data=None, force=False):
-        try:
-            if force: raise KeyError
-            d = self.context.store.load(self.get_prep_key())
-            return d
-        except KeyError:
-            if data is None:
-                raise KeyError()
-        #print "Prepping '%s'" % self.unique_name
-        prep_data = self._prepare(data.reindex(self.context.prep_index))
-        self.context.store.save(self.get_prep_key(), prep_data)
-        return prep_data
-
-    def create_key(self):
-        if not self.context.key_on_indices():
-            return self.unique_name
-        s = get_np_hashable(self.context.data.index)
-        tindex = get_np_hashable(self.context.train_index) if self.depends_on_y() else ''
-        pindex = get_np_hashable(self.context.prep_index) if self.depends_on_other_x() else ''
-        return self.unique_name + '--' + md5('%s--%s--%s' % (s, tindex, pindex)).hexdigest()
-
-    def create(self, context, force=False):
-        """ Caching wrapper around actual feature creation """
-
-        # save existing context
-        prev_context = getattr(self, "context", None)
-
-        self.context = context
-
-        try:
-            if force or not self.context.key_on_indices():
-                raise KeyError
-            d = self.context.store.load(self.create_key())
-            #print "loading '%s'" % (self.unique_name)
-            #TODO: repeated... use 'with' maybe?
-            del self.context
-            return d
-        except KeyError:
-            pass
-            #print "creating '%s' ..." % (self.unique_name)
-
-        data = self.create_data(force)
-
-        # cache it
-        if self._cacheable:
-            self.context.store.save(self.create_key(), data)
-
-        # reassign previous context (typically None)
-        # this is for edge case of same feature object nested in itself
-        self.context = prev_context
-
-        return data
-
-    def _create(self, datas):
-        """
-        Actual feature creation.
-        """
-        data = self.combine(datas)
+    def _prepend_feature_name_to_all_columns(self, data):
         hsh = self._hash() # cache this so we dont recompute for every column
-        data.columns = data.columns.map(lambda x: self.column_rename(x, hsh))
+        data.columns = [self.column_rename(c, hsh) for c in data.columns]
         return data
 
-    def combine(self, datas):
-        """
-        Needs to be overridden
-        """
+    def apply(self, data, fitted_feature):
+        datas = []
+        for feature, inner_fitted_feature in zip(self.features, fitted_feature.inner_fitted_features):
+            datas.append(feature.apply(data, inner_fitted_feature))
+        feature_data = self._combine_apply(datas, fitted_feature)
+        if not isinstance(feature_data, DataFrame):
+            raise TypeError("_combine_apply() method must return a DataFrame")
+        return self._prepend_feature_name_to_all_columns(feature_data)
+
+    def _apply(self, data, fitted_feature):
         raise NotImplementedError
+
+    def _combine_apply(self, datas, fitted_feature):
+        raise NotImplementedError
+
+    def prepare(self, prep_datas):
+        if hasattr(self, '_prepare'):
+            if len(prep_datas) == 1:
+                prep_datas = prep_datas[0]
+            prepped_data = self._prepare(prep_datas)
+            return prepped_data
+        else:
+            return None
+
+    def train(self, train_datas):
+        if hasattr(self, '_train'):
+            if len(train_datas) == 1:
+                train_datas = train_datas[0]
+            trained_data = self._train(train_datas)
+            return trained_data
+        else:
+            return None
 
 
 class Feature(ComboFeature):
@@ -284,24 +330,18 @@ class Feature(ComboFeature):
         super(Feature, self).__init__([feature])
         self.feature = self.features[0]
 
-    def create_data(self, force):
-        """
-        Overrides `ComboFeature` create_data method to only
-        operate on a single sub-feature.
-        """
-        data = self.feature.create(self.context, force)
-        #data = DataFrame(data.copy())
-        data = self._create(data)
-        hsh = self._hash() # cache this so we dont recompute for every column
-        data.columns = data.columns.map(lambda x: self.column_rename(x, hsh))
-        return data
+    def apply(self, data, fitted_feature):
+        # recurse:
+        data = self.feature.apply(data, fitted_feature.inner_fitted_feature)
+        # apply this feature's transformation:
+        feature_data = self._apply(data, fitted_feature)
+        if not isinstance(feature_data, DataFrame):
+            raise TypeError("_apply() method must return a DataFrame")
+        return self._prepend_feature_name_to_all_columns(feature_data)
 
-    def _create(self, data):
-        """
-        Should be overriden by inheriting classes.
-        """
+    def _apply(self, data, fitted_feature):
         return data
-# handy shortcut
+# shortcut
 F = Feature
 
 
@@ -310,7 +350,7 @@ class MissingIndicator(Feature):
     Adds a missing indicator column for this feature.
     Indicator will be 1 if given feature `isnan` (numpy definition), 0 otherwise.
     """
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         for col in data.columns:
             missing = data[col].map(lambda x: int(x.isnan()))
             missing.name = 'missing_%s'%col
@@ -326,7 +366,7 @@ class FillMissing(Feature):
         self.fill_value = fill_value
         super(FillMissing, self).__init__(feature)
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.fillna(self.fill_value)
 
 
@@ -340,7 +380,7 @@ class MissingIndicatorAndFill(Feature):
         self.fill_value = fill_value
         super(MissingIndicatorAndFill, self).__init__(feature)
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         cols = []
         names = []
         for col in data.columns:
@@ -351,26 +391,26 @@ class MissingIndicatorAndFill(Feature):
         return data.fillna(self.fill_value)
 
 
-class DropConstant(ComboFeature):
-    def _prepare(self, data):
-        dropped_cols = []
-        for col in data.columns:
-            if data[col].std() < 1e-9:
-                dropped_cols.append(col)
-        print "Dropped %d columns", (len(dropped_cols), dropped_cols)
-        return {"dropped_columns": dropped_cols}
+# class DropConstant(ComboFeature):
+#     def _prepare(self, data):
+#         dropped_cols = []
+#         for col in data.columns:
+#             if data[col].std() < 1e-9:
+#                 dropped_cols.append(col)
+#         print "Dropped %d columns", (len(dropped_cols), dropped_cols)
+#         return {"dropped_columns": dropped_cols}
 
-    def combine(self, datas):
-        data = concat(datas, axis=1)        
-        cols = self.get_prep_data(data)['dropped_columns']
-        return data.drop(cols, axis=1)
+#     def combine(self, datas):
+#         data = concat(datas, axis=1)        
+#         cols = fitted_feature.prepped_data['dropped_columns']
+#         return data.drop(cols, axis=1)
 
 
 class Length(Feature):
     """
     Applies builtin `len` to feature.
     """
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.applymap(lambda x: len(x))
 
 
@@ -387,15 +427,16 @@ class Normalize(Feature):
             cols[col] = (m, s)
         return cols
 
-    def _create(self, data):
-        eps = 1.0e-7
-        col_stats = self.get_prep_data(data)
+    def _apply(self, data, fitted_feature):
+        eps = 1.0e-10
+        col_stats = fitted_feature.prepped_data
         d = DataFrame(index=data.index)
         for col in data.columns:
             m, s = col_stats.get(col, (0, 0))
             if s < eps:
-                continue
-            d[col] = data[col].map(lambda x: (x - m)/s)
+                d[col] = data[col] - m
+            else:
+                d[col] = (data[col] - m) / s
         return d
 
 
@@ -416,7 +457,7 @@ class Discretize(Feature):
                 return self.values[i]
         return self.values[-1]
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.applymap(self.discretize)
 
 
@@ -434,7 +475,7 @@ class Map(Feature):
         self.name = name
         self._name = name
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.applymap(self.function)
 
 
@@ -455,8 +496,8 @@ class AsFactor(Feature):
             levels = zip(levels, range(len(levels)))
         return levels
 
-    def _create(self, data):
-        levels = self.get_prep_data(data)
+    def _apply(self, data, fitted_feature):
+        levels = fitted_feature.prepped_data
         mapping = dict(levels)
         return data.applymap(mapping.get)
 
@@ -485,8 +526,8 @@ class AsFactorIndicators(Feature):
             levels = sorted(set(get_single_column(data)))
         return levels
 
-    def _create(self, data):
-        factors = self.get_prep_data(data)
+    def _apply(self, data, fitted_feature):
+        factors = fitted_feature.prepped_data
         data = get_single_column(data)
         d = DataFrame(index=data.index)
         if self.include_all:
@@ -507,7 +548,7 @@ class IndicatorEquals(Feature):
         self.value = value
         self._name = self._name + '_%s'%value
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.applymap(lambda x: int(x==self.value))
 
 
@@ -528,7 +569,7 @@ class Power(Feature):
         self.power = power
         super(Power, self).__init__(feature)
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.applymap(lambda x: x ** self.power)
 
 
@@ -550,7 +591,7 @@ class GroupMap(Feature):
         self._name = name
         self.groupargs = groupargs
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         d = data.groupby(**self.groupargs).applymap(self.function)
         return d
 
@@ -592,7 +633,7 @@ class GroupAggregate(ComboFeature):
 
     def _create(self, datas):
         data = concat(datas, axis=1)
-        prep = self.get_prep_data(data)
+        prep = fitted_feature.prepped_data
         globl = prep['global']
         groups = prep['groups']
         if self.groupby_column:
@@ -619,7 +660,7 @@ class Contain(Feature):
         super(Contain, self).__init__(feature)
         self._name = self._name + '(%s,%s)' %(min, max)
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         return data.applymap(lambda x: contain(x, self.min, self.max))
 
 
@@ -634,7 +675,7 @@ class ReplaceOutliers(Feature):
     def is_outlier(self, x, mean, std):
         return abs((x-mean)/std) > self.stdevs
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         replace = self.replace
         cols = []
         for col in data.columns:
@@ -655,7 +696,7 @@ class ColumnSubset(Feature):
         self.subset = subset
         self.match_substr = match_substr
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         if self.match_substr:
             cols = [c for c in data.columns if any([s in c for s in self.subset])]
         else:
@@ -673,7 +714,7 @@ class Lag(Feature):
         super(Lag, self).__init__(feature)
         self._name = self._name + '_%d'%self.lag
 
-    def _create(self, data):
+    def _apply(self, data, fitted_feature):
         cols = []
         for col in data.columns:
             cols.append(Series([self.fill] * self.lag + list(data[col][:-self.lag]),

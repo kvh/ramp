@@ -24,17 +24,17 @@ except AttributeError:
 
 class Metric(object):
     """
-    Implements evaluate method that takes two
-    Series (or DataFrames) and outputs a metric
+    Implements evaluate method that takes a Result object and outputs a score.
     """
     # lower values are better by default, set reverse to true for
     # "bigger is better" metrics
     reverse = False
+    
     @property
     def name(self):
         return self.__class__.__name__.lower()
-
-    def score(self, actual, predicted):
+    
+    def score(self, result):
         raise NotImplementedError
 
 class SKLearnMetric(Metric):
@@ -42,18 +42,19 @@ class SKLearnMetric(Metric):
     
     metric = None
     
-    def __init__(self, **kwargs):
+    def __init__(self, metric, **kwargs):
+        self.metric = metric
         self.kwargs = kwargs
 
-    def score(self, actual, predicted):
-        return self.metric(actual, predicted, **self.kwargs)
+    def score(self, result):
+        return self.metric(result.y_test, result.y_preds, **self.kwargs)
 
 
 # Regression
 class RMSE(Metric):
     '''Mean Squared Error: The average of the squares of the errors.'''
-    def score(self, actual, predicted):
-        return sum((actual - predicted)**2)/float(len(actual))
+    def score(self):
+        return sum((result.y_test - result.y_preds)**2)/float(len(result.y_test))
 
 
 # Classification
@@ -82,9 +83,9 @@ class LogLoss(Metric):
     Logarithmic Loss: Logarithm of the likelihood function for a Bernoulli 
     random distribution. https://www.kaggle.com/wiki/LogarithmicLoss
     '''
-    def score(self, actual, predicted):
-        return - sum(actual * np.log(predicted) + (1 - actual) * np.log(1 -
-            predicted))/len(actual)
+    def score(self, result):
+        return - sum(result.y_test * np.log(result.y_preds) + (1 - actual) * np.log(1 -
+            result.y_preds))/len(result.y_loss)
 
 
 class MCC(SKLearnMetric):
@@ -108,9 +109,9 @@ class GeneralizedMCC(Metric):
                 s2 = sum([c[f,g] for g in range(n) for f in range(n) if f != k])
             s += s1 * s2
         return s
-
-    def score(self, actual, predicted):
-        c = metrics.confusion_matrix(actual, predicted)
+    
+    def score(self, result):
+        c = metrics.confusion_matrix(result.y_test, result.y_preds)
         n = c.shape[0]
         numer = sum([c[k,k] * c[m,l] - c[l,k] * c[k,m] for k in range(n) for l in range(n) for m in range(n)])
         denom = math.sqrt(self.cov(c, n)) * math.sqrt(self.cov(c, n, flip=True))
@@ -118,3 +119,52 @@ class GeneralizedMCC(Metric):
             return numer
         return numer/denom
 
+
+
+class ArgMetric(Metric):
+    """
+    Implements an evaluate method that takes a Result object and an argument and
+    returns a score.
+    """
+    def __init__(self, arg=None):
+        self.arg = arg
+        super(ArgMetric, self).__init__()
+
+    def score(self, result, arg=None):
+        raise NotImplementedError
+
+
+class Recall(ArgMetric):
+    """
+    Recall: True positives / (True positives + False negatives)
+    """
+    def score(self, result, threshold=None):
+        if threshold is None:
+            threshold = self.arg
+        return result.y_test[result.y_preds >= threshold].sum() / float(result.y_test.sum())
+
+
+class WeightedRecall(ArgMetric):
+    """
+    Recall: Sum of weight column @ true positives  / sum of weight column @ (True positives + False negatives)
+    """
+    def __init__(self, arg=None, weight_column=None):
+        self.weight_column = weight_column
+        super(WeightedRecall, self).__init__(arg)
+
+    def score(self, result, threshold=None):
+        if threshold is None:
+            threshold = self.arg
+        positive_indices = result.y_test[result.y_preds > threshold].index
+        return result.original_data.loc[positive_indices][self.weight_column].sum() / \
+               float(result.original_data.loc[result.y_test.index][self.weight_column].sum())
+
+
+class PositiveRate(ArgMetric):
+    """
+    Positive rate: (True positives + False positives) / Total count
+    """
+    def score(self, result, threshold=None):
+        if threshold is None:
+            threshold = self.arg
+        return result.y_test[result.y_preds > threshold].count() / float(result.y_test.count())

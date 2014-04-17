@@ -1,10 +1,10 @@
 ﻿  # -*- coding: utf-8 -*-
 '''
-Configuration
+ModelDefinition
 -------
 
 A configuration is a uniquely defined data analysis model, including 
-features, estimator, and target metric. Configurations can be pickled
+features, estimator, and target metric. ModelDefinitions can be pickled
 and retrieved. 
 
 The ConfigFactory is at the core of the power of Ramp. It creates a 
@@ -17,19 +17,21 @@ from features.base import BaseFeature, Feature
 from utils import _pprint, stable_repr
 import copy
 
-__all__ = ['Configuration', 'ConfigFactory']
+__all__ = ['ModelDefinition', 'ModelDefinitionFactory']
 
 
-class Configuration(object):
+class ModelDefinition(object):
     """
     Defines a specific data analysis model,
     including features, estimator and target metric.
     Can be stored (pickled) and retrieved.
     """
     DEFAULT_PREDICTIONS_NAME = '$predictions'
+    params = ['target', 'features', 'estimator', 'column_subset'
+              'prediction', 'predictions_name', 'actual']
 
-    def __init__(self, target=None, features=None, model=None, metrics=None,
-                 reporters=None, column_subset=None, prediction=None, 
+    def __init__(self, target=None, features=None, estimator=None,
+                 column_subset=None, prediction=None, 
                  predictions_name=None, actual=None):
         """
         Parameters:
@@ -43,17 +45,9 @@ class Configuration(object):
             An iterable of `Features <Feature>` to be used by the estimator 
             in the analysis.
 
-        model: estimator (compatible with sklearn estimators), default None
+        estimator: estimator (compatible with sklearn estimators), default None
             An estimator instance compatible with sklearn estimator 
             conventions: Has fit(x, y) and predict(y) methods.
-
-        metrics: iterable of ramp.metrics `Metric` objects, default None
-            An iterable of evaluation `Metric`s used to score predictions. 
-            Metrics can be built using SKLearn metrics, or can be custom
-            subclasses of the Ramp Metric class. 
-
-        reporters: iterable of ramp.reporters `Reporter` objects, default None
-            An iterable of `Reporter` objects
 
         predictions_name: string, default None
             A unique string used as a column identifier for model predictions. 
@@ -69,13 +63,13 @@ class Configuration(object):
             `prediction` to allow model training, predictions and scoring to 
             operate on different values.
         """
-        self.set_attrs(target, features, metrics, model,
+        self.set_attrs(target, features, estimator,
                        column_subset, prediction, predictions_name, 
-                       actual, reporters)
+                       actual)
 
-    def set_attrs(self, target=None, features=None, metrics=None, model=None,
+    def set_attrs(self, target=None, features=None, estimator=None,
                   column_subset=None, prediction=None,
-                  predictions_name=None, actual=None, reporters=None):
+                  predictions_name=None, actual=None):
             
         if prediction is not None:
             if predictions_name is None:
@@ -104,12 +98,8 @@ class Configuration(object):
         else: 
             self.features = None
             
-        self.metrics = metrics or []
-        self.model = model
+        self.estimator = estimator
         self.column_subset = column_subset
-        self.reporters = reporters or []
-        for r in self.reporters:
-            r.set_config(self)
 
     def __getstate__(self):
         # shallow copy dict and keep references
@@ -124,8 +114,8 @@ class Configuration(object):
             feature_count = len(self.features)
         else: 
             feature_count = 0
-        return 'model: %s\nfeatures: %d [%s ...]\ntarget: %s' % (
-            self.model,
+        return 'estimator: %s\nfeatures: %d [%s ...]\ntarget: %s' % (
+            self.estimator,
             feature_count, 
             ' '.join([str(f) for f in self.features])[:50],
             self.target
@@ -138,43 +128,8 @@ class Configuration(object):
         d.update(dct)
         self.set_attrs(**d)
 
-    def match(self, **kwargs):
-        """
-        Check if configuration contains given features, targets, metrics, or 
-        models. Accepts keyword arguments for each. 
-        
-        Ex:
-        >>> my_configuration.match(features=[ramp.Length('Column 1')])
-        >>> my_configuration.match(metrics=ramp.metrics.AUC)
-        >>> my_configuration.match(model=sklearn.svm.LinearSVC())
-        
-        """
-        if 'features' in kwargs:
-            for f in kwargs['features']:
-                if f.unique_name not in [sf.unique_name for sf in self.features]:
-                    return False
-        if 'target_name' in kwargs:
-            if kwargs['target_name'] != self.target.unique_name:
-                return False
-        if 'metrics' in kwargs:
-            if kwargs['metrics'].__class__ not in [m.__class__ for m in self.metrics]:
-                return False
-        if 'model' in kwargs:
-            if kwargs['model'].__class__ != self.model.__class__:
-                return False
-        return True
 
-    def update_reporters_with_model(self, model):
-        for reporter in self.reporters:
-            reporter.update_with_model(model)
-
-    def update_reporters_with_predictions(self, context, x, actuals, 
-                                          predictions):
-        for reporter in self.reporters:
-            reporter.update_with_predictions(context, x, actuals, predictions)
-
-
-class ConfigFactory(object):
+class ModelDefinitionFactory(object):
     """
     Provides an iterator over passed in
     configuration values, allowing for easy
@@ -187,10 +142,10 @@ class ConfigFactory(object):
         ___________
 
         base_config: 
-            The base `Configuration` to augment
+            The base `ModelDefinition` to augment
 
         kwargs: 
-            Can be any keyword accepted by `Configuration`. 
+            Can be any keyword accepted by `ModelDefinition`. 
             Values should be iterables.
         """
         self.config = base_config
