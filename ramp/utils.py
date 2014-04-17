@@ -78,9 +78,14 @@ def get_np_hashable(obj):
         return np.getbuffer(obj.flatten())
 
 
+def key_from_index(idx):
+    return get_np_hash(idx.values)
+    
+
 def get_single_column(df):
     assert len(df.columns) == 1
     return df[df.columns[0]]
+
 
 def reindex_safe(df, idx):
     if df.index.equals(idx):

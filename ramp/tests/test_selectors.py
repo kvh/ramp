@@ -24,7 +24,20 @@ class TestSelectors(unittest.TestCase):
     def test_binary_selectors(self):
         d = self.data
         d['target'] = [0] * 50 + [1] * 50
-        d['good_feature'] = range(100)
+        d['good_feature'] = [0] * 35 + [1] * 65
+        d['best_feature'] = d['target']
+        features = map(F, ['a', 'b', 'good_feature', 'best_feature'])
+        selector = BinaryFeatureSelector()
+        x, ffs = build_featureset_safe(features, self.data)
+        y, ff = build_target_safe(F('target'), self.data)
+        cols = selector.select(x, y, 2)
+        feature_rank = [F('best_feature'), F('good_feature')]
+        self.assertEqual(cols, [f.unique_name for f in feature_rank])
+
+    def test_binary_selectors_multiclass(self):
+        d = self.data
+        d['target'] = [0] * 50 + [1] * 25 + [2] * 25
+        d['good_feature'] = [0] * 35 + [1] * 65
         d['best_feature'] = d['target']
         features = map(F, ['a', 'b', 'good_feature', 'best_feature'])
         selector = BinaryFeatureSelector()

@@ -36,6 +36,8 @@ class TestBasicFeature(unittest.TestCase):
 
     def test_basefeature_reprs(self):
         f = BaseFeature('col1')
+        self.assertFalse(f.is_trained)
+        self.assertFalse(f.is_prepped)
         self.assertEqual(f.feature, 'col1')
         self.assertEqual(str(f), 'col1')
         self.assertEqual(repr(f), "'col1'")
@@ -43,6 +45,8 @@ class TestBasicFeature(unittest.TestCase):
 
     def test_constantfeature_int_reprs(self):
         f = ConstantFeature(1)
+        self.assertFalse(f.is_trained)
+        self.assertFalse(f.is_prepped)
         self.assertEqual(f.feature, 1)
         self.assertEqual(str(f), '1')
         self.assertEqual(repr(f), '1')
@@ -67,6 +71,8 @@ class TestBasicFeature(unittest.TestCase):
 
     def test_feature_reprs(self):
         f = Feature('col1')
+        self.assertFalse(f.is_trained)
+        self.assertFalse(f.is_prepped)
         self.assertIsInstance(f.feature, BaseFeature)
         self.assertEqual(str(f), 'col1')
         self.assertEqual(f.unique_name, 'col1 [4e89804a]')
@@ -89,6 +95,11 @@ class TestBasicFeature(unittest.TestCase):
         self.assertAlmostEqual(res[res.columns[0]].mean(), 0)
         self.assertAlmostEqual(res[res.columns[0]].std(), 1)
 
+        # test callable functionality
+        res = f(self.data, fitted_feature)
+        self.assertAlmostEqual(res[res.columns[0]].mean(), 0)
+        self.assertAlmostEqual(res[res.columns[0]].std(), 1)
+
         # test no side-effects
         self.assertAlmostEqual(a_mean, self.data.a.mean())
 
@@ -96,6 +107,8 @@ class TestBasicFeature(unittest.TestCase):
         a_mean = self.data.a.mean()
         f = base.Normalize(base.F(10) + base.F('a'))
         prep_data = self.data.iloc[range(len(self.data) / 2)]
+        self.assertFalse(f.is_trained)
+        self.assertTrue(f.is_prepped)
 
         # test build
         res, fitted_feature = f.build(self.data, prep_index=prep_data.index)
@@ -181,6 +194,9 @@ class TestTrainedFeature(unittest.TestCase):
     def test_predictions(self):
         model_def = self.make_model_def_basic()
         f = Predictions(model_def)
+        self.assertTrue(f.is_trained)
+        self.assertFalse(f.is_prepped)
+        
         r, ff = f.build(self.data)
         r = r[r.columns[0]]
         assert_almost_equal(r.values, np.zeros(len(self.data)))
@@ -272,20 +288,19 @@ class TestTrainedFeature(unittest.TestCase):
 
 
 
-# class TestDimReduction(unittest.TestCase):
-#     def setUp(self):
-#         self.data = make_data(10)
-#         self.ctx = context.DataContext(data=self.data)
+class TestComboFeatures(unittest.TestCase):
+    def setUp(self):
+        self.data = make_data(10)
 
-#     def test_pca_dimred(self):
-#         decomposer = decomposition.PCA(n_components=2)
-#         f = combo.DimensionReduction(['a', 'b', 'c'],
-#                 decomposer=decomposer)
-#         data = f.create(self.ctx)
-#         self.assertEqual(data.shape, (len(self.data), 2))
-#         decomposer = decomposition.PCA(n_components=2)
-#         expected = decomposer.fit_transform(self.data[['a', 'b', 'c']])
-#         assert_almost_equal(expected, data.values)
+    def test_dim_reduction(self):
+        decomposer = decomposition.PCA(n_components=2)
+        f = combo.DimensionReduction(['a', 'b', 'c'],
+                decomposer=decomposer)
+        data, ff = build_feature_safe(f, self.data)
+        self.assertEqual(data.shape, (len(self.data), 2))
+        decomposer = decomposition.PCA(n_components=2)
+        expected = decomposer.fit_transform(self.data[['a', 'b', 'c']])
+        assert_almost_equal(expected, data.values)
 
 
 

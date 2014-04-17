@@ -12,7 +12,7 @@ from ramp.estimators.base import Probabilities
 from ramp.features.base import F, Map
 from ramp.features.trained import Predictions
 from ramp.model_definition import ModelDefinition
-from ramp.modeling import fit_model, predict_model
+from ramp.modeling import fit_model, predict_model, cross_validate, build_and_package_model
 from ramp.tests.test_features import make_data
 
 
@@ -86,6 +86,25 @@ class TestBasicModeling(unittest.TestCase):
         self.assertEqual(len(y_true), 3)
         self.assertEqual(len(y_preds), 3)
 
+    def test_cross_validate(self):
+        model_def = self.make_model_def_basic()
+        results, reports = cross_validate(model_def, self.data, folds=3)
+        self.assertEqual(len(results), 3)
+
+    def test_build_and_package_model(self):
+        model_def = self.make_model_def_basic()
+        desc =  "State-of-the-Art Model"
+        pkg = build_and_package_model(model_def, self.data, desc,
+                                      train_index=self.data.index[:3])
+        self.assertEqual(pkg.data_description, desc)
+        self.assertTrue(pkg.fitted_model)
+
+        # and evaluate
+        pkg = build_and_package_model(model_def, self.data, desc, evaluate=True,
+                                      train_index=self.data.index[:3])
+        self.assertEqual(pkg.data_description, desc)
+        self.assertTrue(pkg.fitted_model)
+
 
 class TestNestedModeling(unittest.TestCase):
     def setUp(self):
@@ -110,7 +129,8 @@ class TestNestedModeling(unittest.TestCase):
 
         x, y_true, y_preds = predict_model(model_def, self.data[:3], fitted_model)
         assert_almost_equal(x[x.columns[1]].values, np.zeros(3))
-        
+
+
 
 if __name__ == '__main__':
     unittest.main()

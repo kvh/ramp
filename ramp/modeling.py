@@ -3,6 +3,7 @@ from ramp.estimators.base import FittedEstimator
 from ramp.folds import make_default_folds
 from ramp.result import Result
 from ramp.store import Storable
+from ramp.utils import key_from_index
 
 
 class FittedModel(Storable):
@@ -20,13 +21,14 @@ class FittedModel(Storable):
 
 class PackagedModel(Storable):
 
-    def __init__(self, fitted_model, data, data_description, evaluation_metrics=None, reports=None):
+    def __init__(self, fitted_model, data, data_description, result=None, reports=None):
         super(PackagedModel, self).__init__()
         self.fitted_model = fitted_model
-        self.data_rows = len(data)
-        self.data_columns = len(data.columns)
+        self.n_rows = len(data)
+        self.n_cols = len(data.columns)
+        self.data_key = key_from_index(data.index)
         self.data_description = data_description
-        self.evaluation_metrics = evaluation_metrics
+        self.result = result
         self.reports = reports
 
 
@@ -56,7 +58,7 @@ def predict_model(model_def, predict_data, fitted_model, compute_actuals=True):
     return x_test, y_test, y_preds
 
 
-def cross_validate(model_def, data, folds, evaluation_metrics=None, reporters=None, repeat=None):
+def cross_validate(model_def, data, folds, metrics=None, reporters=None, repeat=1):
     """
     """
     if isinstance(folds, int):
@@ -73,27 +75,32 @@ def cross_validate(model_def, data, folds, evaluation_metrics=None, reporters=No
             else:
                 raise ValueError("Fold is not of right dimension (%d)"%len(fold))
             x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
-            x_test, y_true, y_preds = predict_model(model_def, data, fitted_model)
-            result = None #Result(model_def, x_train, y_train, x_test, y_test, y_preds, fitted_model, evaluation_metrics)
+            x_test, y_test, y_preds = predict_model(model_def, data, fitted_model)
+            result = Result(x_train, x_test, y_train, y_test, y_preds, model_def, fitted_model, data)
             results.append(result)
     #TODO
     ### reporter/metrics work here
     reports = None
-    metrics = None
-    return results, metrics, reports
+    return results, reports
 
 
-def build_and_package_model(model_def, data, data_description, evaluation_metrics=None,
-                            reporters=None, train_index=None, prep_index=None):
-    x_train, y_train, fitted_model = model_fit(model_def, data, prep_index, train_index)
+def build_and_package_model(model_def, data, data_description, evaluate=False,
+                            reporters=None, prep_index=None, train_index=None):
+    x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
+    result = None
+    if evaluate:
+        # only evaluate on train (this seems reasonable)
+        y_preds = fitted_model.fitted_estimator.predict(x_train)
+        result = Result(x_train, x_train, y_train, y_train, y_preds, model_def, fitted_model, data)
+        #TODO
+        # reports = evaluate(result, reporters)
 
     # TODO
-    eval_ = evaluation_metrics
     reports = []
 
     packaged_model = PackagedModel(fitted_model,
                                    data,
                                    data_description,
-                                   evaluation_metrics,
+                                   result,
                                    reports)
     return packaged_model
