@@ -1,5 +1,6 @@
 from base import (F, Map, FillMissing, Normalize, Log,
-                           AsFactor, AsFactorIndicators)
+                  FittedFeature,
+                  AsFactor, AsFactorIndicators)
 import base
 import combo
 import text

@@ -40,12 +40,14 @@ class FittedFeature(Storable):
         # handle both ComboFeatures and Features naturally
         if inner_fitted_feature or isinstance(inner_fitted_features, FittedFeature):
             self.inner_fitted_feature = inner_fitted_feature
-        elif len(inner_fitted_features) == 1:
-            self.inner_fitted_feature = inner_fitted_features[0]
         elif inner_fitted_features:
-            self.inner_fitted_features = inner_fitted_features
+            if len(inner_fitted_features) == 1:
+                self.inner_fitted_feature = inner_fitted_features[0]
+            else:
+                self.inner_fitted_features = inner_fitted_features
         else:
-            raise ValueError("Please provide inner_fitted_feature(s)")
+            pass
+            # raise ValueError("Please provide inner_fitted_feature(s)")
 
         self.prepped_data = prepped_data
         self.trained_data = trained_data
