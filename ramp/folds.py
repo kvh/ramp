@@ -59,8 +59,8 @@ class WatertightFolds(BasicFolds):
             watertight_bins = watertight_bins.reindex(np.random.permutation(watertight_bins.index))
             watertight_bins_cum = watertight_bins.cumsum()
             for i in range(self.num_folds):
-                test_bins = watertight_bins_cum[(watertight_bins_cum >= i * foldsize) & 
-                                                (watertight_bins_cum < (i+1) * foldsize)]
+                test_bins = watertight_bins_cum[(watertight_bins_cum >  i * foldsize) & 
+                                                (watertight_bins_cum <= (i+1) * foldsize)]
                 test =index[self.data[self.leakage_column].isin(test_bins.index)]
                 train = index - test
                 
