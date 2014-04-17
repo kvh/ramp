@@ -5,6 +5,7 @@ from builders import build_target_safe
 
 #TODO: how to repeat folds?
 
+
 class BasicFolds(object):
     def __init__(self, num_folds, data, repeat=1, seed=None):
         self.num_folds = num_folds
@@ -28,7 +29,6 @@ class BasicFolds(object):
                 assert not (train & test)
                 fold = (pd.Index(train), pd.Index(test))
                 yield fold
-
 
 
 class BinaryTargetFolds(object):

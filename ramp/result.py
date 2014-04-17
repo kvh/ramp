@@ -1,5 +1,6 @@
 from ramp.store import Storable
 
+
 class Result(Storable):
     def __init__(self, x_train, x_test, y_train, y_test, y_preds, model_def, fitted_model, original_data):
         """

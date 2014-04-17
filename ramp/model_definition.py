@@ -128,32 +128,6 @@ class ModelDefinition(object):
         d.update(dct)
         self.set_attrs(**d)
 
-    def match(self, **kwargs):
-        """
-        Check if configuration contains given features, targets, metrics, or 
-        estimator. Accepts keyword arguments for each. 
-        
-        Ex:
-        >>> my_configuration.match(features=[ramp.Length('Column 1')])
-        >>> my_configuration.match(metrics=ramp.metrics.AUC)
-        >>> my_configuration.match(estimator=sklearn.svm.LinearSVC())
-        
-        """
-        if 'features' in kwargs:
-            for f in kwargs['features']:
-                if f.unique_name not in [sf.unique_name for sf in self.features]:
-                    return False
-        if 'target_name' in kwargs:
-            if kwargs['target_name'] != self.target.unique_name:
-                return False
-        if 'metrics' in kwargs:
-            if kwargs['metrics'].__class__ not in [m.__class__ for m in self.metrics]:
-                return False
-        if 'estimator' in kwargs:
-            if kwargs['estimator'].__class__ != self.model.__class__:
-                return False
-        return True
-
 
 class ModelDefinitionFactory(object):
     """

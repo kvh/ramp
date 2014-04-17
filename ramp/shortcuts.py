@@ -26,7 +26,7 @@ def cv_factory(data=None, folds=None, repeat=1, **kwargs):
     All ModelDefinition kwargs should be iterables that can be
     passed to a ModelDefinitionFactory.
     """
-    cv = kwargs.pop('cv_runner', modeling.cross_validate)
+    cv_runner = kwargs.pop('cv_runner', modeling.cross_validate)
     md_kwargs = {}
     for arg in ModelDefinition.params:
         if arg in kwargs:
@@ -34,7 +34,7 @@ def cv_factory(data=None, folds=None, repeat=1, **kwargs):
     model_def_fact = ModelDefinitionFactory(ModelDefinition(), **md_kwargs)
     all_results = []
     for model_def in model_def_fact:
-        results, metrics, reports = modeling.cross_validate(model_def, data, folds, repeat=repeat, **kwargs)
+        results, metrics, reports = cv_runner(model_def, data, folds, repeat=repeat, **kwargs)
         #TODO
     #TODO
 
