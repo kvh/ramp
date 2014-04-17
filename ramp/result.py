@@ -1,9 +1,11 @@
 from ramp.store import Storable
 
 class Result(Storable):
-    def __init__(self, model_def, y_test, y_preds, x_test, x_train, y_train, prep_data, fitted_model, evals):
+    def __init__(self, original_data, model_def, y_test, y_preds, x_test, x_train, y_train, prep_data, fitted_model, evals):
         """
+        Class for storing the result of a single model fit.
         """
+        self.original_data = original_data
         self.model_def = model_def
         self.y_test = y_test
         self.y_preds = y_preds

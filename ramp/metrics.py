@@ -136,6 +136,17 @@ class Recall(ArgMetric):
     def score(self, result, threshold):
         return result.y_test[result.evals > threshold].sum() / result.y_test.sum()
 
+class WeightedRecall(ArgMetric):
+    """
+    Recall: Sum of weight column @ true positives  / sum of weight column @ (True positives + False negatives)
+    """
+    def __init__(self, weight_column):
+        self.weight_column = weight_column
+
+    def score(self, result, threshold):
+        positive_indices = result.y_test[result.evals > threshold].index
+        return result.original_data.loc[positive_indices][self.weight_column].sum() / \
+               result.original_data.loc[result.y_test.index][self.weight_column].sum()
 
 class PositiveRate(ArgMetric):
     """
@@ -143,11 +154,3 @@ class PositiveRate(ArgMetric):
     """
     def score(self, result, threshold):
         return result.y_test[result.evals > threshold].count() / result.y_test.count()
-
-class PositiveRate(ArgMetric):
-    """
-    Precision: True positives / (True positives + False positives)
-    """
-    def score(self, result, threshold):
-        return result.y_test[result.evals > threshold].count() / result.y_test.count()
-

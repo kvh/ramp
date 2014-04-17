@@ -3,8 +3,7 @@ import numpy as np
 from pandas import DataFrame, Series
 from utils import pprint_scores
 from collections import defaultdict
-from prettytable import PrettyTable
-
+import pylab as pl
 
 class Reporter(object):
     defaults = dict(
@@ -181,9 +180,14 @@ class MetricReporter(Reporter):
         self.metric = metric
     
     def update(self, result):
-        self.ret.append(self.metric.score(result.y_test, result.evals))
+        self.ret.append(self.metric.score(result))
     
-    def pretty_table(self, lower_quantile=None, upper_quantile=None):
+    def summary_df(self, lower_quantile=None, upper_quantile=None):
+        if lower_quantile is None:
+            lower_quantile = self.config.lower_quantile
+        if upper_quantile is None:
+            upper_quantile = self.config.upper_quantile
+        
         vals = Series(self.ret)
         
         lower_bound = vals.quantile(lower_quantile)
@@ -191,22 +195,111 @@ class MetricReporter(Reporter):
         median = vals.quantile(50)
         mean = vals.mean()
         
-        tab = PrettyTable([ "mean" % upper_quantile*100
-                          , "median"
-                          , "lb_%d_%%tile" % lower_quantile*100
-                          , "ub_%d_%%tile" % upper_quantile*100])
-        tab.add_row([mean, median, lower_bound, upper_bound])
-        return tab
+        column_names = [ "Mean" , "Median" , "%d_Percentile" % (lower_quantile*100), "%d_Percentile" % (upper_quantile*100)]
+        df = pd.DataFrame(dict(zip(column_names, [mean, median, lower_bound, upper_bound])), index=[0])
+        
+        return df
     
     def _repr_html_(self):
-        return self.pretty_table().get_html_string()
+        return self.summary_df()._repr_html_()
     
     def plot(self):
         vals = Series(self.ret)
         vals.hist()
     
-    def report(self, lower_quantile=None, upper_quantile=None):
-        tab = self.pretty_table(lower_quantile=lower_quantile, upper_quantile=upper_quantile)
-        return tab
+    def report(self, **kwargs):
+        """
+        Report the results of dual thresholded metrics.
+        
+        Kwargs:
+            Thresholds: list of thresholds. Automatically calculated from the results if not provided.
+            lower_quantile: Lower quantile for confidence bound.
+            upper_quantile: Upper quantile for confidence bound.
+        """
+        return self.summary_df(**kwargs)
 
 
+class DualThresholdMetricReporter(MetricReporter):
+    """
+    Reports on a pair of metrics which are threshold sensitive.
+    
+    Thresholds are automatically detected from the evaluation results unless explicitly set in the config.
+    """
+    
+    def __init__(self, metric1, metric2, **kwargs):
+        """
+        Accepts a Metric object and evaluates it at each fold.
+        """
+        Reporter.__init__(self, **kwargs)
+        self.metric1 = metric1
+        self.metric2 = metric2
+        self.results = []
+        self.cached_curves = 0
+    
+    @property
+    def n_current_results(self):
+        return len(self.results)
+    
+    @property
+    def thresholds(self):
+        if thresholds in self.config:
+            return self.config['thresholds']
+        else:
+            thresholds = set()
+            for result in ret:
+                thresholds.update(result.evals)
+            return list(thresholds)
+    
+    def update(self, result):
+        self.results.append(result)
+    
+    def summary_df(self, thresholds=None, lower_quantile=None, upper_quantile=None):
+        """
+        Calculates the pair of metrics for each threshold for each result.
+        """
+        if thresholds is None:
+            thresholds = self.thresholds
+        if lower_quantile is None:
+            lower_quantile = self.config['lower_quantile']
+        if upper_quantile is None:
+            upper_quantile = self.config['upper_quantile']
+        
+        if self.n_current_results > self.n_cached_curves:
+            # If there are new curves, recompute
+            colnames = ['_'.join([metric, stat])
+                        for metric in [self.metric1.name, self.metric2.name] 
+                        for stat in ['Mean', 'Median', '%d_Percentile' % (100*lower_quantile), '%d_Percentile' % (upper_quantile*100)]]
+            self.ret = pd.DataFrame(columns=colnames, index=thresholds)
+            
+            for threshold in thresholds:
+                m1s = Series([self.metric1.score(result, threshold) for result in results])
+                m2s = Series([self.metric2.score(result, threshold) for result in results])
+                self.ret.loc[threshold] = (m1s.mean(), m1s.quantile(.5), m1s.quantile(.05), m1s.quantile(.95),
+                                           m2s.mean(), m2s.quantile(.5), m2s.quantile(.05), m2s.quantile(.95))
+        return self.ret
+    
+    def plot(self, ax=None, color='red', **kwargs):
+        curves = self.summary_df()
+        
+        if ax is None:
+            fig, ax = pl.subplots()
+        
+        # Plot medians
+        ax.plot(curves[curves.columns[1]], 
+                curves[curves.columns[5]], 
+                color=color, markeredgecolor=color)
+        
+        # Plot medians
+        ax.fill_between(
+            curves[curves.columns[1]], 
+            curves[curves.columns[6]], 
+            curves[curves.columns[7]], 
+            facecolor=color, edgercolor='', interpolate=True, alpha=.33)
+        
+        if fig is None:
+            return ax
+        else:
+            return fig, ax
+
+def combine_reports():
+    return NotImplementedError
