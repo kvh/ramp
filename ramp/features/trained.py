@@ -1,16 +1,24 @@
 from pandas import Series, DataFrame, concat
 
 from ramp.builders import build_target_safe
-from ramp.features.base import to_feature, ComboFeature, Feature, DummyFeature
+from ramp.features.base import to_feature, ComboFeature, Feature, AllDataFeature
 from ramp.modeling import fit_model, predict_model
 from ramp.utils import make_folds, get_single_column
 
 
-class Predictions(Feature):
+class TrainedFeature(Feature):
+
+    def __init__(self):
+        # For trained features, we will need access to all the data
+        self.feature = AllDataFeature()
+        super(TrainedFeature, self).__init__(self.feature)
+
+
+class Predictions(TrainedFeature):
     # TODO: update for new context
 
-    def __init__(self, model_def, name=None, external_context=None,
-            cv_folds=None, cache=False):
+    def __init__(self, model_def, name=None, external_data=None,
+            cv_folds=None):
         """
         If cv-folds is specified, will use k-fold cross-validation to
         provide robust predictions.
@@ -21,11 +29,9 @@ class Predictions(Feature):
         """
         self.cv_folds = cv_folds
         self.model_def = model_def
-        self.external_context = external_context
-        self.feature = DummyFeature()
-        self._cacheable = cache
-        self.trained = True
-        super(Predictions, self).__init__(self.feature)
+        self.external_data = external_data
+        super(Predictions, self).__init__()
+        #TODO
         # if self.external_context is not none:
         #     # dont need to retrain if using external dataset to train
         #     self.trained = false
@@ -40,6 +46,8 @@ class Predictions(Feature):
 
     def _apply(self, data, fitted_feature):
         fitted_model = fitted_feature.trained_data
+
+        #TODO
         # if self.cv_folds:
         #     if isinstance(self.cv_folds, int):
         #         folds = make_folds(context.train_index, self.cv_folds)
@@ -79,8 +87,8 @@ class Residuals(Predictions):
 
 class FeatureSelector(ComboFeature):
 
-    def __init__(self, features, selector, target, n_keep=50,
-            threshold_arg=None):
+    def __init__(self, features, selector, target, data, n_keep=50,
+                 threshold_arg=None):
         """
         """
         super(FeatureSelector, self).__init__(features)
@@ -88,15 +96,16 @@ class FeatureSelector(ComboFeature):
         self.n_keep = n_keep
         self.threshold_arg = threshold_arg
         self.target = target
+        self.data = data
         self._name = self._name + '_%d_%s'%(threshold_arg or n_keep, selector.__class__.__name__)
 
     def _train(self, train_datas):
         train_data = concat(train_datas, axis=1)
-        y = build_target_safe(self.target, train_data)
+        y, ff = build_target_safe(self.target, self.data)
         arg = self.threshold_arg
         if arg is None:
             arg = self.n_keep
-        cols = self.selector(train_data, y, arg)
+        cols = self.selector.select(train_data, y, arg)
         return cols
 
     def _combine_apply(self, datas, fitted_feature):
@@ -105,15 +114,13 @@ class FeatureSelector(ComboFeature):
         return data[selected_columns]
 
 
-class TargetAggregationByFactor(Feature):
+class TargetAggregationByFactor(TrainedFeature):
     """
-    #TODO
     """
     def __init__(self, group_by, func=None, target=None, min_sample=10,
             verbose=False):
         # How terrible of a hack is this?
-        feature = DummyFeature()
-        super(TargetAggregationByFactor, self).__init__(feature)
+        super(TargetAggregationByFactor, self).__init__()
         self.group_by = group_by
         self.func = func
         self.target = to_feature(target)
