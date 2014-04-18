@@ -45,7 +45,6 @@ class RandomForestSelector(Selector):
         if self.classifier:
             cls = ensemble.RandomForestClassifier
         rf = cls(n_estimators=self.n,
-                compute_importances=True,
                 random_state=self.seed,
                 n_jobs=-1)
         rf.fit(x.values, y.values)
@@ -74,7 +73,6 @@ class RandomForestSelector(Selector):
             if self.classifier:
                 cls = ensemble.RandomForestClassifier
             rf = cls(n_estimators=self.n,
-                    compute_importances=True,
                     random_state=self.seed,
                     n_jobs=-1)
             rf.fit(x.values[train], y.values[train])
