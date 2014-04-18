@@ -191,7 +191,7 @@ class MetricReporter(Reporter):
         
         lower_bound = vals.quantile(lower_quantile)
         upper_bound = vals.quantile(upper_quantile)
-        median = vals.quantile(50)
+        median = vals.quantile(0.5)
         mean = vals.mean()
         
         column_names = [ "Mean" , "Median" , "%d_Percentile" % (lower_quantile*100), "%d_Percentile" % (upper_quantile*100)]
@@ -204,14 +204,15 @@ class MetricReporter(Reporter):
     
     def plot(self):
         vals = Series(self.ret)
-        vals.hist()
+        ax = vals.hist()
+        ax.set_title("Histogram of values for %s" % self.metric.name)
+        return ax
     
     def report(self, **kwargs):
         """
         Report the results of dual thresholded metrics.
         
         Kwargs:
-            Thresholds: list of thresholds. Automatically calculated from the results if not provided.
             lower_quantile: Lower quantile for confidence bound.
             upper_quantile: Upper quantile for confidence bound.
         """
