@@ -16,8 +16,6 @@ Documentation: http://ramp.readthedocs.org
 
  *  **Clean, declarative syntax**
     
-    No more hackish one-off spaghetti scripts!
-
  *  **Complex feature transformations**
 
     Chain and combine features:
@@ -31,7 +29,7 @@ DimensionReduction([F('x%d'%i) for i in range(100)], decomposer=PCA(n_components
 ```
     Incorporate residuals or predictions to blend with other models:
 ```python
-Residuals(config_model1) + Predictions(config_model2)
+Residuals(simple_model_def) + Predictions(complex_model_def)
 ```
 
  * **Data context awareness**
@@ -41,11 +39,9 @@ Residuals(config_model1) + Predictions(config_model2)
     is stored and tracked between data contexts.
 
 
- *  **Caching**
+ *  **Composability**
 
-    Ramp caches and stores on disk in fast HDF5 format (or elsewhere if you want) all features and models it
-    computes, so nothing is recomputed unnecessarily. Results are stored 
-    and can be retrieved, compared, blended, and reused between runs.
+    All features, estimators, and their fits are composable, pluggable and storable.
 
  *  **Easy extensibility**
 
@@ -148,3 +144,7 @@ Ramp is alpha currently, so expect bugs, bug fixes and API changes.
 
 ## Author
 Ken Van Haren. Email with feedback/questions: kvh@science.io [@squaredloss](http://twitter.com/squaredloss)
+
+## Contributors
+[John McDonnell](https://github.com/johnmcdonnell)
+[Rob Story](https://github.com/wrobstory)

@@ -267,7 +267,9 @@ class DualThresholdMetricReporter(MetricReporter):
             # If there are new curves, recompute
             colnames = ['_'.join([metric, stat])
                         for metric in [self.metric1.name, self.metric2.name] 
-                        for stat in ['Mean', 'Median', '%d_Percentile' % (100*lower_quantile), '%d_Percentile' % (upper_quantile*100)]]
+                        for stat in ['Mean', 'Median',
+                                     '%d_Percentile' % (100*lower_quantile),
+                                     '%d_Percentile' % (upper_quantile*100)]]
             self.ret = pd.DataFrame(columns=colnames, index=thresholds, dtype='float64')
             
             for threshold in thresholds:

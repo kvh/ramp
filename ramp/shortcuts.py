@@ -34,10 +34,7 @@ def cv_factory(data=None, folds=None, repeat=1, **kwargs):
     model_def_fact = ModelDefinitionFactory(ModelDefinition(), **md_kwargs)
     all_results = []
     for model_def in model_def_fact:
-        results, reports = cv_runner(model_def, data, folds, repeat=repeat, **kwargs)
-        #TODO
-    #TODO
-
+        results = cv_runner(model_def, data, folds, repeat=repeat, **kwargs)
 
     # for conf in fact:
     #     ctx = DataContext(store, data)
@@ -53,4 +50,4 @@ def cv_factory(data=None, folds=None, repeat=1, **kwargs):
     #     t.add_row([str(r['config']), s])
     # print t
     # return ctx
-    return results, reports
+    return results
