@@ -146,5 +146,5 @@ Ramp is alpha currently, so expect bugs, bug fixes and API changes.
 Ken Van Haren. Email with feedback/questions: kvh@science.io [@squaredloss](http://twitter.com/squaredloss)
 
 ## Contributors
-[John McDonnell](https://github.com/johnmcdonnell)
-[Rob Story](https://github.com/wrobstory)
+ * [John McDonnell](https://github.com/johnmcdonnell)
+ * [Rob Story](https://github.com/wrobstory)
