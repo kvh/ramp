@@ -6,8 +6,8 @@ from sklearn import decomposition
 
 import ramp
 from ramp.features import *
+from ramp.metrics import PositiveRate, Recall
 
-print ramp.__version__
 
 # fetch and clean iris data from UCI
 data = pd.read_csv(urllib2.urlopen(
@@ -30,6 +30,11 @@ expanded_features = (
     ]
 )
 
+reporters = [
+    ramp.reporters.MetricReporter(Recall(.4)),
+    ramp.reporters.DualThresholdMetricReporter(Recall(), PositiveRate())
+]
+
 
 # Define several models and feature sets to explore,
 # run 5 fold cross-validation on each and print the results.
@@ -40,13 +45,8 @@ ramp.shortcuts.cv_factory(
     folds=5,
 
     target=[AsFactor('class')],
-    # metrics=[
-    #     [metrics.GeneralizedMCC()],
-    #     ],
-    # # report feature importance scores from Random Forest
-    # reporters=[
-    #     [reporters.RFImportance()],
-    #     ],
+
+    reporters=reporters,
 
     # Try out two algorithms
     estimator=[
@@ -60,13 +60,14 @@ ramp.shortcuts.cv_factory(
         expanded_features,
 
         # Feature selection
-        [trained.FeatureSelector(
-            expanded_features,
-            # use random forest's importance to trim
-            ramp.selectors.RandomForestSelector(classifier=True),
-            target=AsFactor('class'), # target to use
-            n_keep=5, # keep top 5 features
-            )],
+        # [trained.FeatureSelector(
+        #     expanded_features,
+        #     # use random forest's importance to trim
+        #     ramp.selectors.BinaryFeatureSelector(),
+        #     target=AsFactor('class'), # target to use
+        #     data=data,
+        #     n_keep=5, # keep top 5 features
+        #     )],
 
         # Reduce feature dimension (pointless on this dataset)
         [combo.DimensionReduction(expanded_features,
@@ -76,3 +77,6 @@ ramp.shortcuts.cv_factory(
         [Normalize(f) for f in expanded_features],
     ]
 )
+
+for reporter in reporters:
+    reporter.plot()
