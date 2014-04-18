@@ -51,7 +51,7 @@ ramp.shortcuts.cv_factory(
     # Try out two algorithms
     estimator=[
         sklearn.ensemble.RandomForestClassifier(
-            n_estimators=20, compute_importances=True),
+            n_estimators=20),
         sklearn.linear_model.LogisticRegression(),
         ],
 
