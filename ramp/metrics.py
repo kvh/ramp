@@ -164,6 +164,8 @@ class PositiveRate(ArgMetric):
     """
     Positive rate: (True positives + False positives) / Total count
     """
+    name = "Positive Rate"
+    
     def score(self, result, threshold=None):
         if threshold is None:
             threshold = self.arg

@@ -205,7 +205,7 @@ class MetricReporter(Reporter):
     def plot(self):
         vals = Series(self.ret)
         ax = vals.hist()
-        ax.set_title("Histogram of values for %s" % self.metric.name)
+        ax.set_title("%s Histogram" % self.metric.name)
         return ax
     
     def report(self, **kwargs):
@@ -298,6 +298,8 @@ class DualThresholdMetricReporter(MetricReporter):
             curves[curves.columns[6]].values, 
             curves[curves.columns[7]].values, 
             facecolor=color, edgecolor='', interpolate=True, alpha=.33)
+        ax.set_xlabel(self.metric1.name.capitalize())
+        ax.set_ylabel(self.metric2.name.capitalize())
         
         if fig is None:
             return ax
