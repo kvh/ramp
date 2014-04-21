@@ -191,7 +191,7 @@ class MetricReporter(Reporter):
         
         lower_bound = vals.quantile(lower_quantile)
         upper_bound = vals.quantile(upper_quantile)
-        median = vals.quantile(50)
+        median = vals.quantile(.5)
         mean = vals.mean()
         
         column_names = [ "Mean" , "Median" , "%d_Percentile" % (lower_quantile*100), "%d_Percentile" % (upper_quantile*100)]

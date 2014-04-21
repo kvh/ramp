@@ -45,7 +45,7 @@ class TestMetrics(unittest.TestCase):
         m = WeightedRecall(weight_column='weights')
         thresholds = np.arange(0,1,.1)
         #          [ 0.   0.1  0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9]
-        expected = [1.0, 1.0, 1.0, 1.0, 1.0, .6, .6, .6, 0, 0]
+        expected = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, .6, .6, .6, 0]
         actuals = [m.score(self.result, t) for t in thresholds]
         assert_almost_equal(expected, actuals)
 

@@ -1,23 +1,24 @@
-from base import Feature, ComboFeature, get_single_column
-from ..selectors import LassoPathSelector
+import collections
+import hashlib
+import math
+import re
+
+import numpy as np
+from pandas import DataFrame, read_csv, concat, Series
 try:
     import gensim
 except ImportError:
     print ('This requires the gensim module:'
            'http://radimrehurek.com/gensim/index.html')
-from ..utils import bag_of_words, cosine, tokenize, tokenize_keep_all, tokenize_with_sentinels
-from pandas import DataFrame, read_csv, concat, Series
-import hashlib
-import re
-import numpy as np
-import collections
-import math
+from ramp.utils import bag_of_words, cosine, tokenize, tokenize_keep_all, tokenize_with_sentinels
 try:
     import nltk
     from nltk.corpus import wordnet
     #wordlist = set(nltk.corpus.words.words('en'))
 except ImportError:
     pass
+
+from ramp.features.base import Feature, ComboFeature, get_single_column
 
 debug = False
 
@@ -46,50 +47,37 @@ def make_docs_hash(docs):
 
 
 class Dictionary(object):
-    def __init__(self, mindocs=3, maxterms=100000, maxdocs=.9, force=False):
+    def __init__(self, mindocs=3, maxterms=100000, maxdocs=.9):
         self.mindocs = mindocs
         self.maxterms = maxterms
         self.maxdocs = maxdocs
         self.dictionary = gensim.corpora.Dictionary
-        self.context = None
-        self.force = force
 
     def name(self, docs, type_='dict'):
         return '%s_%s_%s' % (make_docs_hash(docs), type_,
                 '%d,%d,%f'%(self.mindocs, self.maxterms, self.maxdocs))
 
-    def get_dict(self, context, docs):
-        self.context = context
-        try:
-            dct = context.store.load(self.name(docs))
-            return dct
-        except (KeyError, IOError):
-            return self._make_dict(docs)
+    def get_dict(self, docs):
+        return self._make_dict(docs)
 
     def _make_dict(self, docs):
         dct = self.dictionary(docs)
         dct.filter_extremes(no_below=self.mindocs, no_above=self.maxdocs,
                 keep_n=self.maxterms)
-        self.context.store.save(self.name(docs), dct)
         return dct
 
-    def get_tfidf(self, context, docs):
-        self.context = context
-        try:
-            return self.context.store.load(
-                    self.name(docs, 'tfidf'))
-        except (KeyError, IOError):
-            return self._make_tfidf(docs)
+    def get_tfidf(self, docs):
+        return self._make_tfidf(docs)
 
     def _make_tfidf(self, docs):
-        dct = self.get_dict(self.context, docs)
+        dct = self.get_dict(docs)
         # corpus = [dct.doc2bow(d) for d in docs]
         tfidf = gensim.models.TfidfModel(dictionary=dct)
-        self.context.store.save(self.name(docs, 'tfidf'), tfidf)
         return tfidf
 
 
 class TopicModelFeature(Feature):
+
     def __init__(self, feature, topic_modeler=None, num_topics=50, force=False,
             stored_model=None, mindocs=3, maxterms=100000, maxdocs=.9,
             tokenizer=tokenize):
@@ -105,31 +93,32 @@ class TopicModelFeature(Feature):
         self.force = force
         self._name = '%s_%d' %(self._name, num_topics)
 
-    def _prepare(self, data):
-        docs = list(data.values)
+    def make_docs(self, data):
+        return data.iloc[:,0].values
+
+    def _prepare(self, prep_data):
+        docs = self.make_docs(prep_data)
         dct, tfidf, lsi = self.make_engine(docs)
         return dct, tfidf, lsi
 
     def _apply(self, data, fitted_feature):
-        data = get_single_column(data)
-        vecs = None #self.load('topic_vecs')
-        if vecs is None or self.force:
-            vecs = self.make_vectors(data)
+        data = data.iloc[:,0] # to series
+        dct, tfidf, lsi = fitted_feature.prepped_data
+        vecs = self.make_vectors(data, dct, tfidf, lsi)
         vecs.columns = ['%s_%s'%(c, data.name) for c in vecs.columns]
         return vecs
 
     def make_engine(self, docs):
         print "building topic model"
-        dct = self.dictionary.get_dict(self.context, docs)
+        dct = self.dictionary.get_dict(docs)
         corpus = [dct.doc2bow(d) for d in docs]
-        tfidf = self.dictionary.get_tfidf(self.context, docs)
+        tfidf = self.dictionary.get_tfidf(docs)
         topic_model = self.topic_modeler(corpus=tfidf[corpus], id2word=dct,
                 num_topics=self.num_topics)
         print topic_model
         return dct, tfidf, topic_model
 
-    def make_vectors(self, data, n=None):
-        dct, tfidf, lsi = self.get_prep_data(data)
+    def make_vectors(self, data, dct, tfidf, lsi, n=None):
         vecs = []
         print "Making topic vectors"
         for i, txt in enumerate(data):
@@ -144,6 +133,12 @@ class TopicModelFeature(Feature):
             vecs.append(topic_vec)
         tvecs = DataFrame(vecs, index=data.index)
         return tvecs
+
+
+class LDA(TopicModelFeature):
+    def __init__(self, *args, **kwargs):
+        kwargs['topic_modeler'] = gensim.models.ldamodel.LdaModel
+        super(LDA, self).__init__(*args, **kwargs)
 
 
 class LSI(TopicModelFeature):
@@ -166,12 +161,6 @@ class SentenceLSI(TopicModelFeature):
         print "docs", docs[0][:20]
         self._docs_hash = self.make_docs_hash(docs)
         return docs
-
-
-class LDA(TopicModelFeature):
-    def __init__(self, *args, **kwargs):
-        kwargs['topic_modeler'] = gensim.models.ldamodel.LdaModel
-        super(LDA, self).__init__(*args, **kwargs)
 
 
 class TFIDF(Feature):
@@ -212,18 +201,18 @@ class NgramCounts(Feature):
         self.dictionary = Dictionary(mindocs, maxterms, maxdocs)
         self.bool_ = bool_
 
-    def _prepare(self, data):
-        data = get_single_column(data)
-        docs = list(data)
+    def _prepare(self, prep_data):
+        prep_data = get_single_column(prep_data)
+        docs = list(prep_data)
         if self.verbose:
             print docs[:10]
-        dct = self.dictionary.get_dict(self.context, docs)
+        dct = self.dictionary.get_dict(docs)
         if self.verbose:
             print dct
         return dct
 
     def _apply(self, data, fitted_feature):
-        dct = self.get_prep_data(data)
+        dct = fitted_feature.prepped_data
         data = get_single_column(data)
         docs = [dct.doc2bow(d) for d in data]
         ids = sorted(dct.keys())
@@ -552,6 +541,7 @@ def char_kl(txt):
 class CharFreqKL(Feature):
     def _apply(self, data, fitted_feature):
         return data.map(char_kl)
+
 
 class WeightedWordCount(Feature):
     def _create(self, tokens):

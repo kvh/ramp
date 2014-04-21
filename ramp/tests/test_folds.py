@@ -12,9 +12,10 @@ from ramp.utils import *
 
 
 class TestFolds(unittest.TestCase):
+
     def test_watertight_folds(self):
-        n   = 100000
-        n_u = 10000
+        n   = 10000
+        n_u = 1000
         r   = 4
         n_folds = 10
         df = pd.DataFrame({'a': np.arange(n), 
@@ -34,7 +35,6 @@ class TestFolds(unittest.TestCase):
         # ensure all instances were used in test 
         # TODO, currently failing
         #self.assertEqual(len(te), n)
-
 
     def test_balanced_folds(self):
         n = 100000
@@ -84,7 +84,7 @@ class TestFolds(unittest.TestCase):
             self.assertEqual(len(test_y), pte + nte)
             self.assertEqual(sum(train_y), ptr)
             self.assertEqual(sum(test_y), pte)
-        # ensure all instances were used in test (well, almost)
+        # ensure all instances were used in test (well, almost all)
         self.assertEqual(len(te), 9998) # seed is set
 
     def test_basic_folds(self):

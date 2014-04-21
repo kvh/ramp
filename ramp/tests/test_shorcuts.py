@@ -22,14 +22,14 @@ class TestShortcuts(unittest.TestCase):
         self.data = make_data(10)
 
     def test_cross_validate(self):
-        results, reports = cross_validate(self.data, folds=3, 
+        results = cross_validate(self.data, folds=3, 
                                           features = [F(10), F('a')],
                                           target = F('b'),
                                           estimator = linear_model.LinearRegression())
         self.assertEqual(len(results), 3)
 
     def test_cross_validate_factory(self):
-        results, reports = cv_factory(self.data, folds=3, 
+        results = cv_factory(self.data, folds=3, 
                                           features=[[F(10), F('a')]],
                                           target=[F('b'), F('a')],
                                           estimator=[linear_model.LinearRegression()])

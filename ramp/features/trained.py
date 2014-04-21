@@ -3,7 +3,7 @@ from pandas import Series, DataFrame, concat
 from ramp.builders import build_target_safe
 from ramp.features.base import to_feature, ComboFeature, Feature, AllDataFeature
 from ramp.modeling import fit_model, predict_model
-from ramp.utils import make_folds, get_single_column
+from ramp.utils import make_folds, get_single_column, reindex_safe
 
 
 class TrainedFeature(Feature):
@@ -102,6 +102,7 @@ class FeatureSelector(ComboFeature):
     def _train(self, train_datas):
         train_data = concat(train_datas, axis=1)
         y, ff = build_target_safe(self.target, self.data)
+        y = reindex_safe(y, train_data.index)
         arg = self.threshold_arg
         if arg is None:
             arg = self.n_keep

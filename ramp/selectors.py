@@ -16,22 +16,10 @@ class Selector(object):
     def __repr__(self):
         return '%s(%s)'%(self.__class__.__name__, _pprint(self.__dict__))
 
-    def sets_config(self, ds, config, index):
-        try:
-            return ds.store.load('%r-%r-%s'%(config.features, config.target,
-                get_hash(index)))
-        except KeyError:
-            pass
-        x = ds.get_train_x(config.features)
-        y = ds.get_train_y(config.target)
-        sets = self.sets(x, y)
-        ds.store.save('%r-%r'%(config.features, config.target), sets)
-        return sets
-
 
 class RandomForestSelector(Selector):
 
-    def __init__(self, n=100, thresh=None, min_=True, classifier=False,
+    def __init__(self, n=100, thresh=None, min_=True, classifier=True,
             seed=2345, *args, **kwargs):
         self.n = n
         self.min = min_
@@ -40,7 +28,7 @@ class RandomForestSelector(Selector):
         self.classifier = classifier
         super(RandomForestSelector, self).__init__(*args, **kwargs)
 
-    def sets(self, x, y, n_keep):
+    def select(self, x, y, n_keep):
         cls = ensemble.RandomForestRegressor
         if self.classifier:
             cls = ensemble.RandomForestClassifier
@@ -216,6 +204,7 @@ class BinaryFeatureSelector(Selector):
             scores.append((score, c))
         scores.sort(reverse=True)
         return scores
+
 
 class InformationGainSelector(Selector):
     """ Only for binary classification """

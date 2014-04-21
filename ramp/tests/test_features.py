@@ -10,7 +10,7 @@ from pandas.util.testing import assert_almost_equal
 from sklearn import decomposition
 
 from ramp.builders import *
-from ramp.features import base
+from ramp.features import base, text
 from ramp.features.base import *
 from ramp.features.trained import *
 from ramp.model_definition import ModelDefinition
@@ -20,14 +20,14 @@ def strip_hash(s):
     return s[:-11]
 
 def make_data(n):
-        data = pd.DataFrame(
-                   np.random.randn(n, 3),
-                   columns=['a','b','c'],
-                   index=range(10, n+10))
-        data['const'] = np.zeros(n)
-        data['ints'] = range(n)
-        data['y'] = data['a'] ** 2
-        return data
+    data = pd.DataFrame(
+               np.random.randn(n, 3),
+               columns=['a','b','c'],
+               index=range(10, n+10))
+    data['const'] = np.zeros(n)
+    data['ints'] = range(n)
+    data['y'] = data['a'] ** 2
+    return data
 
 
 class TestBasicFeature(unittest.TestCase):
@@ -89,6 +89,13 @@ class TestBasicFeature(unittest.TestCase):
         vals = fitted_feature.prepped_data.values()[0]
         self.assertAlmostEqual(vals[0], 10 + a_mean)
         self.assertAlmostEqual(vals[1], self.data.a.std())
+
+        # test fitted feature
+        self.assertEqual(len(fitted_feature.inner_fitted_features), 1)
+        iff = fitted_feature.inner_fitted_features[0]
+        self.assertEqual(len(iff.inner_fitted_features), 2)
+        iiff = iff.inner_fitted_features[0]
+        self.assertTrue(iiff.inner_fitted_features[0] is None)
 
         # test apply
         res = f.apply(self.data, fitted_feature)
@@ -196,7 +203,7 @@ class TestTrainedFeature(unittest.TestCase):
         f = Predictions(model_def)
         self.assertTrue(f.is_trained)
         self.assertFalse(f.is_prepped)
-        
+
         r, ff = f.build(self.data)
         r = r[r.columns[0]]
         assert_almost_equal(r.values, np.zeros(len(self.data)))
@@ -259,6 +266,33 @@ class TestTrainedFeature(unittest.TestCase):
         self.assertAlmostEqual(vals[1], np.mean(5))
 
 
+
+def make_text_data(n):
+    data = pd.DataFrame(
+               columns=['a','b','c'],
+               index=range(10, n+10))
+    data['a'] = [' '.join([chr(random.randint(97,123))*5 for i in range(5)]) for _ in range(n)]
+    data['b'] = [' '.join([chr(random.randint(97,123))*5 for i in range(2)]) for _ in range(n)]
+    data['c'] = [' '.join([chr(random.randint(97,123))*2 for i in range(2)]) for _ in range(n)]
+    return data
+
+
+class TestTextFeatures(unittest.TestCase):
+    def setUp(self):
+        self.n = 1000
+        self.data = make_text_data(self.n)
+
+    def test_LSI_topics(self):
+        f = text.LSI(text.Tokenizer('a'), num_topics=1)
+        feature_data, ff = f.build(self.data)
+        self.assertEqual(feature_data.shape, (self.n, 1))
+
+    def test_ngramcounts(self):
+        f = text.NgramCounts(text.Tokenizer('a'), mindocs=1)
+        feature_data, ff = f.build(self.data)
+        self.assertEqual(feature_data.shape, (self.n, 26))
+
+
 # class TestGroupFeatures(unittest.TestCase):
 #     def setUp(self):
 #         self.data = make_data(10)
@@ -301,7 +335,6 @@ class TestComboFeatures(unittest.TestCase):
         decomposer = decomposition.PCA(n_components=2)
         expected = decomposer.fit_transform(self.data[['a', 'b', 'c']])
         assert_almost_equal(expected, data.values)
-
 
 
 if __name__ == '__main__':
