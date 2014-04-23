@@ -10,9 +10,11 @@ from prettytable import PrettyTable, ALL
 
 debug = False
 
-""" model fitting has no caching currently. for one, not that useful
-since you usually want to run different models/features/training subsets. also,
-hard to implement (so many variables/data to key on, are they all really immutable?)
+""" 
+Model fitting has no caching currently. For one, not that
+useful since you usually want to run different
+models/features/training subsets. Also, hard to implement (so
+many variables/data to key on, are they all really immutable?)
 """
 
 def get_x(config, context):

@@ -8,6 +8,9 @@ import ramp
 from ramp.features import *
 from ramp.metrics import PositiveRate, Recall
 
+import logging
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 # fetch and clean iris data from UCI
 data = pd.read_csv(urllib2.urlopen(
@@ -15,7 +18,6 @@ data = pd.read_csv(urllib2.urlopen(
 data = data.drop([149]) # bad line
 columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'class']
 data.columns = columns
-
 
 # all features
 features = [FillMissing(f, 0) for f in columns[:-1]]
@@ -31,8 +33,8 @@ expanded_features = (
 )
 
 reporters = [
-    ramp.reporters.MetricReporter(Recall(.4)),
-    ramp.reporters.DualThresholdMetricReporter(Recall(), PositiveRate())
+    ramp.reporters.MetricReporter.factory(Recall(.4)),
+    ramp.reporters.DualThresholdMetricReporter.factory(Recall(), PositiveRate())
 ]
 
 
@@ -40,13 +42,13 @@ reporters = [
 # run 5 fold cross-validation on each and print the results.
 # We define 2 models and 4 feature sets, so this will be
 # 4 * 2 = 8 models tested.
-ramp.shortcuts.cv_factory(
+outcomes = ramp.shortcuts.cv_factory(
     data=data,
-    folds=5,
+    folds=10,
 
     target=[AsFactor('class')],
 
-    reporters=reporters,
+    reporter_factories=reporters,
 
     # Try out two algorithms
     estimator=[
@@ -78,5 +80,4 @@ ramp.shortcuts.cv_factory(
     ]
 )
 
-for reporter in reporters:
-    reporter.plot()
+print outcomes.values()[0]['reporters'][0]
