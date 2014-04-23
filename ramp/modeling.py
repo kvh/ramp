@@ -1,3 +1,5 @@
+import logging
+
 from ramp.builders import build_featureset_safe, build_target_safe, apply_featureset_safe, apply_target_safe
 from ramp.estimators.base import FittedEstimator
 from ramp.folds import make_default_folds
@@ -82,6 +84,7 @@ def cross_validate(model_def, data, folds, reporter_factories=None, repeat=1):
             x_test, y_test, y_preds = predict_model(model_def, data, fitted_model)
             result = Result(x_train, x_test, y_train, y_test, y_preds, model_def, fitted_model, data)
             results.append(result)
+            logging.debug(result.__dict__)
             
             for reporter in reporters:
                 reporter.update(result)

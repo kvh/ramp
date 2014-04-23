@@ -1,3 +1,4 @@
+import logging
 from pandas import Series, DataFrame, concat
 
 from ramp.builders import build_target_safe
@@ -118,15 +119,13 @@ class FeatureSelector(ComboFeature):
 class TargetAggregationByFactor(TrainedFeature):
     """
     """
-    def __init__(self, group_by, func=None, target=None, min_sample=10,
-            verbose=False):
+    def __init__(self, group_by, func=None, target=None, min_sample=10):
         # How terrible of a hack is this?
         super(TargetAggregationByFactor, self).__init__()
         self.group_by = group_by
         self.func = func
         self.target = to_feature(target)
         self.min_sample = min_sample
-        self.verbose = verbose
 
     def _train(self, train_data):
         y, ff = build_target_safe(self.target, train_data)
@@ -135,19 +134,17 @@ class TargetAggregationByFactor(TrainedFeature):
         train_data['__grouping'] = train_data[self.group_by].map(lambda x: x if x in keys else '__other')
         train_data['__target'] = y
         vals = train_data.groupby('__grouping').agg({'__target': self.func})['__target'].to_dict()
-        if self.verbose:
-            print "\nPreparing Target Aggregations:"
-            print vals.items()[:10]
+        logging.debug("Preparing Target Aggregations:")
+        logging.debug(str(vals.items()[:10]))
         del train_data['__target']
         del train_data['__grouping']
         return (keys, vals)
 
     def _apply(self, data, fitted_feature):
         keys, vals = fitted_feature.trained_data
-        if self.verbose:
-            print "\nLoading Target aggs"
-            print vals.items()[:10]
-            print keys[:10]
-            print data.columns
+        logging.debug("Loading Target aggs")
+        logging.debug(str(vals.items()[:10]))
+        logging.debug(str(keys[:10]))
+        logging.debug(str(data.columns))
         data = data.applymap(lambda x: vals.get(x if x in keys else '__other'))
         return data
