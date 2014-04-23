@@ -13,11 +13,12 @@ of features, models, and metrics
 
 '''
 
+import itertools
 from features.base import BaseFeature, Feature
 from utils import _pprint, stable_repr
 import copy
 
-__all__ = ['ModelDefinition', 'ModelDefinitionFactory']
+__all__ = ['ModelDefinition', 'model_definition_factory']
 
 
 class ModelDefinition(object):
@@ -80,7 +81,7 @@ class ModelDefinition(object):
             self.target = target
         else: 
             self.target = Feature(target)                
-
+        
         if isinstance(prediction, BaseFeature) or prediction is None: 
             self.prediction = prediction
         else: 
@@ -120,6 +121,23 @@ class ModelDefinition(object):
             ' '.join([str(f) for f in self.features])[:50],
             self.target
         )
+    
+    @property
+    def summary(self):
+        """
+        Summary of model definition for labeling. Intended to be somewhat
+        readable but unique to a given model definition.
+        """
+        estimator_name = self.estimator.__class__.__name__
+        estimator_params = ','.join([':'.join((key, str(val))) 
+            for key, val in self.estimator.get_params().items() 
+            if val is not None])
+        if self.features is not None: 
+            feature_count = len(self.features)
+        else: 
+            feature_count = 0
+        feature_hash = 'feathash:' + str(hash(tuple(self.features)))
+        return (estimator_name, estimator_params, feature_count, feature_hash, self.target)
 
     def update(self, dct):
         """Update the configuration with new parameters. Must use same 
@@ -129,43 +147,31 @@ class ModelDefinition(object):
         self.set_attrs(**d)
 
 
-class ModelDefinitionFactory(object):
+def model_definition_factory(model_definition, **kwargs):
     """
-    Provides an iterator over passed in
+    Provides an iterator over passed-in
     configuration values, allowing for easy
     exploration of models.
+    
+    Parameters:
+    ___________
+    
+    base_config: 
+        The base `ModelDefinition` to augment
+    
+    kwargs: 
+        Can be any keyword accepted by `ModelDefinition`. 
+        Values should be iterables.
     """
-
-    def __init__(self, base_config, **kwargs):
-        """
-        Parameters:
-        ___________
-
-        base_config: 
-            The base `ModelDefinition` to augment
-
-        kwargs: 
-            Can be any keyword accepted by `ModelDefinition`. 
-            Values should be iterables.
-        """
-        self.config = base_config
-        self.kwargs = kwargs
-
-    def __iter__(self):
-        return self.iterate(self.kwargs, self.config)
-
-    def iterate(self, dct, config):
-        if not dct:
-            yield config
-            return
-        dct = copy.copy(dct)
-        k, values = dct.popitem()
-        if not hasattr(self.config, k):
-            raise ValueError("'%s' is not a valid configuration parameter"%k)
-        for v in values:
-            new_config = copy.copy(config)
-            new_config.update({k:v})
-            for cnf in self.iterate(dct, new_config):
-                yield cnf
-
+    if not kwargs:
+        yield config
+    else:
+        for param in kwargs:
+            if not hasattr(model_definition, param):
+                raise ValueError("'%s' is not a valid configuration parameter" % param)
+        
+        for raw_params in itertools.product(*kwargs.values()):
+            new_definition = copy.copy(model_definition)
+            new_definition.update(dict(zip(kwargs.keys(), raw_params)))
+            yield new_definition
 

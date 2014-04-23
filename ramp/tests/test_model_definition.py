@@ -11,7 +11,7 @@ from pandas.util.testing import assert_almost_equal
 from sklearn import linear_model
 
 from ramp.features.base import F, Map
-from ramp.model_definition import ModelDefinition, ModelDefinitionFactory
+from ramp.model_definition import ModelDefinition, model_definition_factory
 
 
 class ModelDefinitionTest(unittest.TestCase):
@@ -22,7 +22,7 @@ class ModelDefinitionTest(unittest.TestCase):
                 estimator='model',
                 target='y'
                 )
-        factory = ModelDefinitionFactory(base,
+        factory = model_definition_factory(base,
             features=[
                 ['a','b'],
                 ['a','b','c'],

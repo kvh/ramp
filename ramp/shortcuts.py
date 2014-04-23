@@ -1,10 +1,5 @@
-import numpy as np
-from prettytable import PrettyTable, ALL
-
-from ramp.model_definition import ModelDefinition, ModelDefinitionFactory
+from ramp.model_definition import ModelDefinition, model_definition_factory
 from ramp import modeling
-
-        
 
 def cross_validate(data=None, folds=None, repeat=1, **kwargs):
     """Shortcut to cross-validate a single configuration.
@@ -22,32 +17,21 @@ def cross_validate(data=None, folds=None, repeat=1, **kwargs):
 
 def cv_factory(data=None, folds=None, repeat=1, **kwargs):
     """Shortcut to iterate and cross-validate models.
-
+    
     All ModelDefinition kwargs should be iterables that can be
-    passed to a ModelDefinitionFactory.
+    passed to model_definition_factory.
     """
     cv_runner = kwargs.pop('cv_runner', modeling.cross_validate)
     md_kwargs = {}
     for arg in ModelDefinition.params:
         if arg in kwargs:
             md_kwargs[arg] = kwargs.pop(arg)
-    model_def_fact = ModelDefinitionFactory(ModelDefinition(), **md_kwargs)
-    all_results = []
+    model_def_fact = model_definition_factory(ModelDefinition(), **md_kwargs)
+    ret = {}
     for model_def in model_def_fact:
-        results = cv_runner(model_def, data, folds, repeat=repeat, **kwargs)
-
-    # for conf in fact:
-    #     ctx = DataContext(store, data)
-    #     results.append(cv(conf, ctx, **fargs))
-    # t = PrettyTable(["Configuration", "Score"])
-    # t.hrules = ALL
-    # t.align["Configuration"] = "l"
-    # for r in results:
-    #     scores_dict = r['scores']
-    #     s = ""
-    #     for metric, scores in scores_dict.items():
-    #         s += "%s: %s" % (metric, pprint_scores(scores))
-    #     t.add_row([str(r['config']), s])
-    # print t
-    # return ctx
-    return results
+        results, reporters = cv_runner(model_def, data, folds, repeat=repeat, **kwargs)
+        ret[model_def.summary] = {'model_def': model_def,
+                                  'results': results,
+                                  'reporters': reporters}
+    
+    return ret

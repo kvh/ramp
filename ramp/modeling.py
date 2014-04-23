@@ -58,14 +58,17 @@ def predict_model(model_def, predict_data, fitted_model, compute_actuals=True):
     return x_test, y_test, y_preds
 
 
-def cross_validate(model_def, data, folds, reporters=None, repeat=1):
+def cross_validate(model_def, data, folds, reporter_factories=None, repeat=1):
     """
     """
+    results = []
+    if reporter_factories is None:
+        reporter_factories = []
+
     if isinstance(folds, int):
         folds = make_default_folds(num_folds=folds, data=data)
-
-    results = []
-    reporters = reporters or []
+    
+    reporters = [factory() for factory in reporter_factories]
     for i in range(repeat):
         for fold in folds:
             if len(fold) == 2:
@@ -79,10 +82,10 @@ def cross_validate(model_def, data, folds, reporters=None, repeat=1):
             x_test, y_test, y_preds = predict_model(model_def, data, fitted_model)
             result = Result(x_train, x_test, y_train, y_test, y_preds, model_def, fitted_model, data)
             results.append(result)
-            # TODO: should reporter have another method for intermediate reporting?
+            
             for reporter in reporters:
                 reporter.update(result)
-    return results
+    return results, reporters
 
 
 def build_and_package_model(model_def, data, data_description, evaluate=False,
