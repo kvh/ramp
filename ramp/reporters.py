@@ -35,9 +35,9 @@ class Reporter(object):
         return self.summary.__repr__()
     
     def recompute(self):
-        self.summary = [self.summarise(result) for result in self.results]
+        self.summary = [self.summarize(result) for result in self.results]
     
-    def summarise(self, result):
+    def summarize(self, result):
         raise NotImplementedError
     
     def update(self, result):
@@ -45,33 +45,26 @@ class Reporter(object):
         Accepts an object of type Result and updates the report's internal representation.
         """
         self.results.append(result)
-        ret = self.summarise(result)
+        ret = self.summarize(result)
         self.summary.append(ret)
         logging.debug("{name}.update returned {ret}".format(name=self.__class__.__name__, ret=ret))
     
-    def report(self):
-        """
-        Output the report. 
-        A report's output can be an image, text string, or even a web page.
-        """
-        return self.summary
-    
     @staticmethod
     def combine(reporters):
-        for reporter in reporters:
-            reporter.report
+        # TODO: Reporters should know how to combine with other reporters of the same kind to produce aggregate reports.
+        raise NotImplementedError
 
 class ModelOutliers(Reporter):
     pass
 
 class ConfusionMatrix(Reporter):
     @staticmethod
-    def summarise(result):
+    def summarize(result):
         return metrics.confusion_matrix(result.y_test, result.y_preds)
 
 class MislabelInspector(Reporter):
     @staticmethod
-    def summarise(result):
+    def summarize(result):
         ret = []
         for ind in result.y_test.index:
             a, p = result.y_test.loc[ind], result.y_preds.loc[ind]
@@ -109,10 +102,8 @@ class RFImportance(Reporter):
     def _repr_html_(self):
         return self.summary._repr_html_()
     
-
-
 class PRCurve(Reporter):
-    def summarise(self, result):
+    def summarize(self, result):
         p, r, t = metrics.precision_recall_curve(result.y_test, result.y_preds)
         ret = DataFrame(
                 {'Precision': p, 
@@ -137,9 +128,8 @@ class PRCurve(Reporter):
         pl.legend(loc="lower right")
         pl.show()
 
-
 class ROCCurve(Reporter):
-    def summarise(self, result):
+    def summarize(self, result):
         fpr, tpr, thresholds = metrics.roc_curve(result.y_test, result.y_preds)
         ret = DataFrame(
                 {'FPR':fpr, 
@@ -164,7 +154,6 @@ class ROCCurve(Reporter):
         pl.legend(loc="lower right")
         pl.show()
 
-
 class OOBEst(Reporter):
     def update(self, model):
         try:
@@ -184,7 +173,6 @@ class MetricReporter(Reporter):
               lower_quantile=.05
             , upper_quantile=.95
             )
-
     
     def __init__(self, metric, **kwargs):
         """
@@ -192,7 +180,7 @@ class MetricReporter(Reporter):
         """
         Reporter.__init__(self, **kwargs)
         self.metric = metric
-        self.summarise = self.metric.score
+        self.summarize = self.metric.score
     
     def summary_df(self):
         lower_quantile = self.config['lower_quantile']
@@ -210,6 +198,9 @@ class MetricReporter(Reporter):
         
         return df
     
+    def __repr__(self):
+        return self.summary_df().__repr__()
+    
     def _repr_html_(self):
         return self.summary_df()._repr_html_()
     
@@ -218,16 +209,6 @@ class MetricReporter(Reporter):
         ax = vals.hist()
         ax.set_title("%s Histogram" % self.metric.name)
         return ax
-    
-    def report(self, **kwargs):
-        """
-        Report the results of dual thresholded metrics.
-        
-        Kwargs:
-            lower_quantile: Lower quantile for confidence bound.
-            upper_quantile: Upper quantile for confidence bound.
-        """
-        return self.summary_df(**kwargs)
 
 
 class DualThresholdMetricReporter(MetricReporter):
@@ -241,6 +222,14 @@ class DualThresholdMetricReporter(MetricReporter):
     def __init__(self, metric1, metric2, **kwargs):
         """
         Accepts a Metric object and evaluates it at each fold.
+        
+        Parameters:
+        Thresholds: [Float], default: None
+            Thresholds for reporting the two metrics. If not set, thresholds
+            are model predictions from all runs computed on the fly.
+        
+        lower_quantile, upper_quantile: Float, default 0.05, 0.095
+            Quantiles to be used for reporting metrics.
         """
         Reporter.__init__(self, **kwargs)
         self.metric1 = metric1
@@ -262,7 +251,10 @@ class DualThresholdMetricReporter(MetricReporter):
                 thresholds.update(result.y_preds)
             return list(thresholds)
     
-    def summarise(self, result):
+    def reset_thresholds():
+        self.config['thresholds'] = None
+    
+    def summarize(self, result):
         thresholds = sorted(list(set(result.y_preds)))
         ret = DataFrame(
                 {self.metric1.name: [self.metric1.score(result, threshold) for threshold in thresholds],
@@ -307,13 +299,13 @@ class DualThresholdMetricReporter(MetricReporter):
         fig, ax = fig_ax
         if ax is None:
             fig, ax = pl.subplots()
-
+        
         # Plot medians
         ax.plot(curves[curves.columns[1]].values, 
                 curves[curves.columns[5]].values, 
                 color=color, 
                 markeredgecolor=color)
-
+        
         # Plot medians
         ax.fill_between(
             curves[curves.columns[1]].values, 

@@ -128,16 +128,12 @@ class ModelDefinition(object):
         Summary of model definition for labeling. Intended to be somewhat
         readable but unique to a given model definition.
         """
-        estimator_name = self.estimator.__class__.__name__
-        estimator_params = ','.join([':'.join((key, str(val))) 
-            for key, val in self.estimator.get_params().items() 
-            if val is not None])
         if self.features is not None: 
             feature_count = len(self.features)
         else: 
             feature_count = 0
         feature_hash = 'feathash:' + str(hash(tuple(self.features)))
-        return (estimator_name, estimator_params, feature_count, feature_hash, self.target)
+        return (str(self.estimator), feature_count, feature_hash, self.target)
 
     def update(self, dct):
         """Update the configuration with new parameters. Must use same 

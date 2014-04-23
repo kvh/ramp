@@ -60,17 +60,14 @@ def predict_model(model_def, predict_data, fitted_model, compute_actuals=True):
     return x_test, y_test, y_preds
 
 
-def cross_validate(model_def, data, folds, reporter_factories=None, repeat=1):
+def cross_validate(model_def, data, folds, reporters=[], repeat=1):
     """
     """
     results = []
-    if reporter_factories is None:
-        reporter_factories = []
 
     if isinstance(folds, int):
         folds = make_default_folds(num_folds=folds, data=data)
     
-    reporters = [factory() for factory in reporter_factories]
     for i in range(repeat):
         for fold in folds:
             if len(fold) == 2:

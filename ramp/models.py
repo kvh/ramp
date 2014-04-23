@@ -11,13 +11,6 @@ from prettytable import PrettyTable, ALL
 
 debug = False
 
-""" 
-Model fitting has no caching currently. For one, not that
-useful since you usually want to run different
-models/features/training subsets. Also, hard to implement (so
-many variables/data to key on, are they all really immutable?)
-"""
-
 def get_x(config, context):
     x = build_featureset(config.features, context)
     if config.column_subset:
@@ -158,7 +151,7 @@ def cv(config, context, folds=5, repeat=2, print_results=False,
     t.align["Reporter"] = "l"
     t.align["Report"] = "l"
     for reporter in config.reporters:
-        t.add_row([reporter.__class__.__name__, reporter.report()])
+        t.add_row([reporter.__class__.__name__, str(reporter)])
         reporter.reset()
      if print_results:
         print t
@@ -175,7 +168,7 @@ def evaluate(config, ctx, predict_index,
         result = predict_method(config, ctx, predict_index, update_column=predict_update_column)
     preds = result['predictions']
     y = result['actuals']
-
+    
     try:
         if config.actual is not None:
             actuals = build_target(config.actual, ctx).reindex(predict_index)
@@ -184,7 +177,7 @@ def evaluate(config, ctx, predict_index,
     #TODO: HACK -- there may not be an actual attribute on the config
     except AttributeError:
         actuals = y.reindex(predict_index)
-
+    
     scores = {}
     for metric in config.metrics:
         name = get_metric_name(metric)
@@ -198,22 +191,22 @@ def evaluate(config, ctx, predict_index,
 def predict_autosequence(config, context, predict_index, fit_model=True, update_column=None):
     if len(context.train_index & predict_index):
         logging.warning("Train and predict indices overlap...")
-
+    
     x, y = None, None
-
+    
     if fit_model:
         x, y = fit(config, context)
-
+    
     logging.debug(x.columns)
     logging.debug(config.model.coef_)
-
+    
     ctx = context.copy()
     ps = []
     for i in predict_index:
         ctx.data = context.data
         x = get_x(config, ctx)
         predict_x = x.reindex([i])
-
+    
         # make actual predictions
         p = config.model.predict(predict_x.values)
         if update_column is not None:
