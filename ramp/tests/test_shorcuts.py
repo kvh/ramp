@@ -22,7 +22,7 @@ class TestShortcuts(unittest.TestCase):
         self.data = make_data(10)
 
     def test_cross_validate(self):
-        results = cross_validate(self.data, folds=3, 
+        results, reporters = cross_validate(self.data, folds=3, 
                                           features = [F(10), F('a')],
                                           target = F('b'),
                                           estimator = linear_model.LinearRegression())
