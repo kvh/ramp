@@ -157,8 +157,8 @@ class WeightedRecall(ArgMetric):
         if threshold is None:
             threshold = self.arg
         positive_indices = result.y_test[result.y_preds >= threshold].index
-        return result.original_data.loc[positive_indices][self.weight_column].sum() / \
-               float(result.original_data.loc[result.y_test.index][self.weight_column].sum())
+        return (result.original_data.loc[positive_indices][self.weight_column].sum() /
+               float(result.original_data.loc[result.y_test.index][self.weight_column].sum()))
 
 
 class PositiveRate(ArgMetric):
@@ -171,4 +171,3 @@ class PositiveRate(ArgMetric):
         if threshold is None:
             threshold = self.arg
         return result.y_test[result.y_preds >= threshold].count() / float(result.y_test.count())
-

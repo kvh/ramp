@@ -30,24 +30,16 @@ available_features = []
 class FittedFeature(Storable):
 
     def __init__(self, feature, train_index, prep_index, prepped_data=None,
-                 trained_data=None, inner_fitted_features=None, inner_fitted_feature=None):
+                 trained_data=None, inner_fitted_features=None):
+        self.feature = feature
+
         # compute metadata
         self.train_n = len(train_index)
         self.prep_n = len(prep_index)
         self.train_data_key = key_from_index(train_index)
         self.prep_data_key = key_from_index(prep_index)
 
-        # handle both ComboFeatures and Features naturally
-        if inner_fitted_feature or isinstance(inner_fitted_features, FittedFeature):
-            self.inner_fitted_feature = inner_fitted_feature
-        elif inner_fitted_features:
-            if len(inner_fitted_features) == 1:
-                self.inner_fitted_feature = inner_fitted_features[0]
-            else:
-                self.inner_fitted_features = inner_fitted_features
-        else:
-            pass
-            # raise ValueError("Please provide inner_fitted_feature(s)")
+        self.inner_fitted_features = inner_fitted_features
 
         self.prepped_data = prepped_data
         self.trained_data = trained_data
@@ -276,10 +268,7 @@ class ComboFeature(BaseFeature):
                            inner_fitted_features=fitted_features)
         ff.prepped_data = self.prepare([reindex_safe(d, prep_index) for d in datas])
         ff.trained_data = self.train([reindex_safe(d, train_index) for d in datas])
-        if len(datas) == 1:
-            feature_data = self._apply(datas[0], ff)
-        else:
-            feature_data = self._combine_apply(datas, ff)
+        feature_data = self._combine_apply(datas, ff)
         feature_data = self._prepend_feature_name_to_all_columns(feature_data)
         return feature_data, ff
 
@@ -305,8 +294,6 @@ class ComboFeature(BaseFeature):
 
     def prepare(self, prep_datas):
         if hasattr(self, '_prepare'):
-            if len(prep_datas) == 1:
-                prep_datas = prep_datas[0]
             prepped_data = self._prepare(prep_datas)
             return prepped_data
         else:
@@ -314,8 +301,6 @@ class ComboFeature(BaseFeature):
 
     def train(self, train_datas):
         if hasattr(self, '_train'):
-            if len(train_datas) == 1:
-                train_datas = train_datas[0]
             trained_data = self._train(train_datas)
             return trained_data
         else:
@@ -330,17 +315,34 @@ class Feature(ComboFeature):
         super(Feature, self).__init__([feature])
         self.feature = self.features[0]
 
-    def apply(self, data, fitted_feature):
-        # recurse:
-        data = self.feature.apply(data, fitted_feature.inner_fitted_feature)
-        # apply this feature's transformation:
-        feature_data = self._apply(data, fitted_feature)
-        if not isinstance(feature_data, DataFrame):
-            raise TypeError("_apply() method must return a DataFrame")
-        return self._prepend_feature_name_to_all_columns(feature_data)
+    # def apply(self, data, fitted_feature):
+    #     # recurse:
+    #     data = self.feature.apply(data, fitted_feature.inner_fitted_feature)
+    #     # apply this feature's transformation:
+    #     feature_data = self._apply(data, fitted_feature)
+    #     if not isinstance(feature_data, DataFrame):
+    #         raise TypeError("_apply() method must return a DataFrame")
+    #     return self._prepend_feature_name_to_all_columns(feature_data)
 
     def _apply(self, data, fitted_feature):
         return data
+
+    def _combine_apply(self, datas, fitted_feature):
+        return self._apply(datas[0], fitted_feature)
+
+    def prepare(self, prep_datas):
+        if hasattr(self, '_prepare'):
+            prepped_data = self._prepare(prep_datas[0])
+            return prepped_data
+        else:
+            return None
+
+    def train(self, train_datas):
+        if hasattr(self, '_train'):
+            trained_data = self._train(train_datas[0])
+            return trained_data
+        else:
+            return None
 # shortcut
 F = Feature
 

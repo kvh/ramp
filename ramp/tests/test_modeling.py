@@ -88,7 +88,7 @@ class TestBasicModeling(unittest.TestCase):
 
     def test_cross_validate(self):
         model_def = self.make_model_def_basic()
-        results, reports = cross_validate(model_def, self.data, folds=3)
+        results  = cross_validate(model_def, self.data, folds=3)
         self.assertEqual(len(results), 3)
 
     def test_build_and_package_model(self):

@@ -219,6 +219,17 @@ class MetricReporter(Reporter):
         ax.set_title("%s Histogram" % self.metric.name)
         return ax
     
+    def report(self, **kwargs):
+        """
+        Report the results of dual thresholded metrics.
+        
+        Kwargs:
+            lower_quantile: Lower quantile for confidence bound.
+            upper_quantile: Upper quantile for confidence bound.
+        """
+        return self.summary_df(**kwargs)
+
+
 class DualThresholdMetricReporter(MetricReporter):
     """
     Reports on a pair of metrics which are threshold sensitive.
