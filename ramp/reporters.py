@@ -31,8 +31,8 @@ class Reporter(object):
         self.config.update(self.defaults)
         self.config.update(kwargs)
     
-    def __repr__(self):
-        return self.summary.__repr__()
+    def __str__(self):
+        return str(self.summary)
     
     def recompute(self):
         self.summary = [self.summarize(result) for result in self.results]
@@ -162,7 +162,7 @@ class OOBEst(Reporter):
         except AttributeError:
             logging.exception("Model has no OOB score")
     
-    def __repr__(self):
+    def __str__(self):
         if not self.summary:
             return None
         else:
@@ -198,8 +198,8 @@ class MetricReporter(Reporter):
         
         return df
     
-    def __repr__(self):
-        return self.summary_df().__repr__()
+    def __str__(self):
+        return str(self.summary_df())
     
     def _repr_html_(self):
         return self.summary_df()._repr_html_()
@@ -246,9 +246,11 @@ class DualThresholdMetricReporter(MetricReporter):
         if 'thresholds' in self.config:
             return self.config['thresholds']
         else:
-            thresholds = set()
+            thresholds = pd.Series()
             for result in self.results:
-                thresholds.update(result.y_preds)
+                print result.y_preds
+                thresholds = pd.concat(thresholds, result.y_preds).unique()
+                print thresholds
             return list(thresholds)
     
     def reset_thresholds():
