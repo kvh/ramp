@@ -49,6 +49,10 @@ class Reporter(object):
         self.summary.append(ret)
         logging.debug("{name}.update returned {ret}".format(name=self.__class__.__name__, ret=ret))
     
+    def from_results(self, results):
+        for result in results:
+            self.update(result)
+    
     @staticmethod
     def combine(reporters):
         # TODO: Reporters should know how to combine with other reporters of the same kind to produce aggregate reports.
