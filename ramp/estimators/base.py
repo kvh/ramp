@@ -30,8 +30,18 @@ class Estimator(Wrapper):
 
     def fit(self, x, y):
         return self.estimator.fit(x.values, y.values)
-
+    
+    def predict_maxprob(self, x):
+        """
+        Most likely value. Generally equivalent to predict.
+        """
+        return self.estimator.predict(x.values)
+    
     def predict(self, x):
+        """
+        Model output. Not always the same as scikit_learn predict. E.g., in the
+        case of logistic regression, returns the probability of each outome.
+        """
         return self.estimator.predict(x.values)
 
 

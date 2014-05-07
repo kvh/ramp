@@ -12,6 +12,7 @@ Metric/SKLearnMetric classes
 
 '''
 
+import logging
 import math
 import numpy as np
 from sklearn import metrics

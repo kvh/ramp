@@ -1,3 +1,4 @@
+import logging
 from utils import make_folds, _pprint
 from pandas import Series, concat
 from scipy.stats import norm
@@ -39,10 +40,9 @@ class RandomForestSelector(Selector):
         importances = rf.feature_importances_
         imps = sorted(zip(importances, x.columns),
                 reverse=True)
-        if self.verbose:
-            for i, x in enumerate(imps):
-                imp, f = x
-                print '%d\t%0.4f\t%s'%(i,imp, f)
+        for i, x in enumerate(imps):
+            imp, f = x
+            logging.debug('%d\t%0.4f\t%s'%(i,imp, f))
         if self.thresh:
             imps = [t for t in imps if t[0] > self.thresh]
         return [t[1] for t in imps[:n_keep]]
@@ -56,7 +56,7 @@ class RandomForestSelector(Selector):
         i = 0
         for train, test in cross_validation.KFold(n=len(y), k=4):
             i += 1
-            print "RF selector computing importances for fold", i
+            logging.info("RF selector computing importances for fold {i}".format(i=i))
             cls = ensemble.RandomForestRegressor
             if self.classifier:
                 cls = ensemble.RandomForestClassifier
@@ -73,7 +73,7 @@ class RandomForestSelector(Selector):
                 reverse=True)
         for i, x in enumerate(imps):
             imp, f = x
-            print '%d\t%0.4f\t%s'%(i,imp, f)
+            logging.debug('%d\t%0.4f\t%s' % (i, imp, f))
         if self.thresh:
             imps = [t for t in imps if t[0] > self.thresh]
         sets = [[t[1] for t in imps[:i+1]] for i in range(len(imps))]
@@ -89,10 +89,10 @@ class StepwiseForwardSelector(Selector):
         lm = linear_model.LinearRegression(normalize=True)
         remaining = x.columns
         curr = []
-        print "stepwise forward"
+        logging.debug("stepwise forward")
         for i in range(self.n):
             if i % 10 == 0:
-                print i, 'features'
+                logging.debug("{i} features".format(i=i))
             coefs = []
             for col in remaining:
                 cols = curr + [col]
@@ -108,7 +108,7 @@ class StepwiseForwardSelector(Selector):
                     fcf = min(cf, fcf)
                 coefs.append(fcf)
             coef, col = max(zip(coefs, remaining))
-            print "adding column", col
+            logging.debug("adding column: {col}".format(col=col))
             curr.append(col)
             remaining = remaining.drop([col])
             yield list(curr)
@@ -120,7 +120,7 @@ class LassoPathSelector(Selector):
         alphas, active, coef_path = linear_model.lars_path(x.values, y.values)
         sets = []
         seen = set()
-        print coef_path
+        logging.debug(coef_path)
         for coefs in coef_path.T:
             cols = [x.columns[i] for i in range(len(coefs)) if coefs[i] > 1e-9]
             if len(cols) >= n_keep:
@@ -139,15 +139,13 @@ class BinaryFeatureSelector(Selector):
 
     def select(self, x, y, n_keep):
         cnts = y.value_counts()
-        print "Computing binary feature scores for %d features..." % len(x.columns)
+        logging.info("Computing binary feature scores for %d features..." % len(x.columns))
         if len(cnts) > 2:
             scores = self.round_robin(x, y, n_keep)
         else:
             scores = self.rank(x, y)
             scores = [s[1] for s in scores]
-        if self.verbose:
-            # just show top few hundred
-            print scores[:200]
+        logging.debug(scores[:200])
         return scores[:n_keep]
 
     def round_robin(self, x, y, n_keep):
@@ -210,7 +208,7 @@ class InformationGainSelector(Selector):
     def sets(self, x, y, n_keep):
         cnts = y.value_counts()
         assert(len(cnts) == 2)
-        print "Computing IG scores..."
+        logging.info("Computing IG scores...")
         scores = []
         for c in x.columns:
             true_positives = sum(np.logical_and(x[c], y))

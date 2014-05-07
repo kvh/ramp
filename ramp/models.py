@@ -1,3 +1,4 @@
+import logging
 from utils import make_folds, _pprint, get_single_column, pprint_scores
 from pandas import Series, concat, DataFrame
 import random
@@ -9,11 +10,6 @@ from builders import build_featureset, build_target
 from prettytable import PrettyTable, ALL
 
 debug = False
-
-""" model fitting has no caching currently. for one, not that useful
-since you usually want to run different models/features/training subsets. also,
-hard to implement (so many variables/data to key on, are they all really immutable?)
-"""
 
 def get_x(config, context):
     x = build_featureset(config.features, context)
@@ -45,7 +41,7 @@ def fit(config, context, model_name=None, load_only=False):
     try:
         # model caching
         config.model = context.store.load(model_name or get_key(config, context))
-        print "Loading stored model..."
+        logging.info("Loading stored model...")
     except KeyError:
         if load_only:
             raise Exception("Could not load model and load_only=True.")
@@ -56,16 +52,12 @@ def fit(config, context, model_name=None, load_only=False):
 
         config.model.column_names = train_x.columns
 
-        if debug:
-            print train_x
-            print train_x.columns
+        logging.debug(train_x)
 
-        print "Fitting model '%s' ... " % (config.model),
-        #if isinstance(config.model, DataFrameEstimator):
-            #config.model.fit(train_x, train_y)
-        #else:
+        logging.info("Fitting model '{model}' ... ".format(model=config.model))
+        
         config.model.fit(train_x.values, train_y.values)
-        print "[OK]"
+        logging.info("...done.")
         context.store.save(model_name or get_key(config, context), config.model)
 
     config.update_reporters_with_model(config.model)
@@ -75,7 +67,7 @@ def fit(config, context, model_name=None, load_only=False):
 
 def predict(config, context, predict_index, fit_model=True, model_name=None):
     if len(context.train_index & predict_index):
-        print "WARNING: train and predict indices overlap..."
+        logging.warning("Train and predict indices overlap...")
 
     x, y = None, None
 
@@ -98,19 +90,18 @@ def predict(config, context, predict_index, fit_model=True, model_name=None):
         except KeyError:
             pass
 
-    if debug:
-        print x.columns
+    logging.debug(x.columns)
 
     predict_x = x.reindex(predict_index)
 
-    print "Making predictions... ",
+    logging.info("Making predictions... ")
     # make actual predictions
     ps = config.model.predict(predict_x.values)
     try:
         preds = Series(ps, index=predict_x.index)
     except:
         preds = DataFrame(ps, index=predict_x.index)
-    print "[OK]"
+    logging.info("...done.")
     # prediction post-processing
     if config.prediction is not None:
         old = context.data
@@ -142,7 +133,7 @@ def cv(config, context, folds=5, repeat=2, print_results=False,
     folds = list(folds)
     k = len(folds)/repeat
     for train, test in folds:
-        print "\nCross-Validation fold %d/%d round %d/%d" % (i % k + 1, k, i/k + 1, repeat)
+        logging.info("Cross-Validation fold %d/%d round %d/%d" % (i % k + 1, k, i/k + 1, repeat))
         i += 1
         ctx.train_index = train
         ctx.test_index = test
@@ -150,9 +141,8 @@ def cv(config, context, folds=5, repeat=2, print_results=False,
         context.latest_result = result
         for metric_, s in fold_scores.items():
             scores[metric_].append(s)
-        if print_results:
-            for metric_, s in scores.items():
-                print "%s: %s" % (metric_, pprint_scores(s))
+        for metric_, s in scores.items():
+            logging.debug("%s: %s" % (metric_, pprint_scores(s)))
     result = {'config':config, 'scores':scores}
 
     # report results
@@ -161,9 +151,10 @@ def cv(config, context, folds=5, repeat=2, print_results=False,
     t.align["Reporter"] = "l"
     t.align["Report"] = "l"
     for reporter in config.reporters:
-        t.add_row([reporter.__class__.__name__, reporter.report()])
+        t.add_row([reporter.__class__.__name__, str(reporter)])
         reporter.reset()
-    print t
+    if print_results:
+        print t
     
     return result
 
@@ -177,7 +168,7 @@ def evaluate(config, ctx, predict_index,
         result = predict_method(config, ctx, predict_index, update_column=predict_update_column)
     preds = result['predictions']
     y = result['actuals']
-
+    
     try:
         if config.actual is not None:
             actuals = build_target(config.actual, ctx).reindex(predict_index)
@@ -186,7 +177,7 @@ def evaluate(config, ctx, predict_index,
     #TODO: HACK -- there may not be an actual attribute on the config
     except AttributeError:
         actuals = y.reindex(predict_index)
-
+    
     scores = {}
     for metric in config.metrics:
         name = get_metric_name(metric)
@@ -199,24 +190,23 @@ def evaluate(config, ctx, predict_index,
 
 def predict_autosequence(config, context, predict_index, fit_model=True, update_column=None):
     if len(context.train_index & predict_index):
-        print "WARNING: train and predict indices overlap..."
-
+        logging.warning("Train and predict indices overlap...")
+    
     x, y = None, None
-
+    
     if fit_model:
         x, y = fit(config, context)
-
-    if debug:
-        print x.columns
-        print config.model.coef_
-
+    
+    logging.debug(x.columns)
+    logging.debug(config.model.coef_)
+    
     ctx = context.copy()
     ps = []
     for i in predict_index:
         ctx.data = context.data
         x = get_x(config, ctx)
         predict_x = x.reindex([i])
-
+    
         # make actual predictions
         p = config.model.predict(predict_x.values)
         if update_column is not None:

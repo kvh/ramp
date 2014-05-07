@@ -13,11 +13,14 @@ of features, models, and metrics
 
 '''
 
+import itertools
 from features.base import BaseFeature, Feature
+from estimators.base import Estimator, Probabilities
 from utils import _pprint, stable_repr
+import logging
 import copy
 
-__all__ = ['ModelDefinition', 'ModelDefinitionFactory']
+__all__ = ['ModelDefinition', 'model_definition_factory']
 
 
 class ModelDefinition(object):
@@ -46,9 +49,11 @@ class ModelDefinition(object):
             in the analysis.
 
         estimator: estimator (compatible with sklearn estimators), default None
-            An estimator instance compatible with sklearn estimator 
-            conventions: Has fit(x, y) and predict(y) methods.
-
+            An estimator instance compatible with sklearn estimator
+            conventions: Has fit(x, y) and predict(y) methods. If the object is
+            not a ramp Estimator, it will be wrapped to add sensible
+            prediction methods.
+        
         predictions_name: string, default None
             A unique string used as a column identifier for model predictions. 
             Must be unique among all feature names: eg '$logreg_predictions$'
@@ -80,7 +85,7 @@ class ModelDefinition(object):
             self.target = target
         else: 
             self.target = Feature(target)                
-
+        
         if isinstance(prediction, BaseFeature) or prediction is None: 
             self.prediction = prediction
         else: 
@@ -98,7 +103,16 @@ class ModelDefinition(object):
         else: 
             self.features = None
             
-        self.estimator = estimator
+        # Wrap estimator to return probabilities in the case of a classifier
+        if isinstance(estimator, Estimator):
+            self.estimator = estimator
+        elif not (hasattr(estimator, "fit") and hasattr(estimator, "predict")):
+            raise ValueError, "Invalid estimator: %s" % estimator
+        elif hasattr(estimator, "predict_proba"):
+            self.estimator = Probabilities(estimator)
+        else:
+            self.estimator = Estimator(estimator)
+        
         self.column_subset = column_subset
 
     def __getstate__(self):
@@ -120,7 +134,20 @@ class ModelDefinition(object):
             ' '.join([str(f) for f in self.features])[:50],
             self.target
         )
-
+    
+    @property
+    def summary(self):
+        """
+        Summary of model definition for labeling. Intended to be somewhat
+        readable but unique to a given model definition.
+        """
+        if self.features is not None: 
+            feature_count = len(self.features)
+        else: 
+            feature_count = 0
+        feature_hash = 'feathash:' + str(hash(tuple(self.features)))
+        return (str(self.estimator), feature_count, feature_hash, self.target)
+    
     def update(self, dct):
         """Update the configuration with new parameters. Must use same 
         kwargs as __init__"""
@@ -129,43 +156,31 @@ class ModelDefinition(object):
         self.set_attrs(**d)
 
 
-class ModelDefinitionFactory(object):
+def model_definition_factory(model_definition, **kwargs):
     """
-    Provides an iterator over passed in
+    Provides an iterator over passed-in
     configuration values, allowing for easy
     exploration of models.
+    
+    Parameters:
+    ___________
+    
+    base_config: 
+        The base `ModelDefinition` to augment
+    
+    kwargs: 
+        Can be any keyword accepted by `ModelDefinition`. 
+        Values should be iterables.
     """
-
-    def __init__(self, base_config, **kwargs):
-        """
-        Parameters:
-        ___________
-
-        base_config: 
-            The base `ModelDefinition` to augment
-
-        kwargs: 
-            Can be any keyword accepted by `ModelDefinition`. 
-            Values should be iterables.
-        """
-        self.config = base_config
-        self.kwargs = kwargs
-
-    def __iter__(self):
-        return self.iterate(self.kwargs, self.config)
-
-    def iterate(self, dct, config):
-        if not dct:
-            yield config
-            return
-        dct = copy.copy(dct)
-        k, values = dct.popitem()
-        if not hasattr(self.config, k):
-            raise ValueError("'%s' is not a valid configuration parameter"%k)
-        for v in values:
-            new_config = copy.copy(config)
-            new_config.update({k:v})
-            for cnf in self.iterate(dct, new_config):
-                yield cnf
-
+    if not kwargs:
+        yield config
+    else:
+        for param in kwargs:
+            if not hasattr(model_definition, param):
+                raise ValueError("'%s' is not a valid configuration parameter" % param)
+        
+        for raw_params in itertools.product(*kwargs.values()):
+            new_definition = copy.copy(model_definition)
+            new_definition.update(dict(zip(kwargs.keys(), raw_params)))
+            yield new_definition
 

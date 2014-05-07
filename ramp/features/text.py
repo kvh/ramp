@@ -1,6 +1,6 @@
+import logging
 import collections
 import hashlib
-import math
 import re
 
 import numpy as np
@@ -8,8 +8,8 @@ from pandas import DataFrame, read_csv, concat, Series
 try:
     import gensim
 except ImportError:
-    print ('This requires the gensim module:'
-           'http://radimrehurek.com/gensim/index.html')
+    logging.exception("""This requires the gensim module:
+           http://radimrehurek.com/gensim/index.html""")
 from ramp.utils import bag_of_words, cosine, tokenize, tokenize_keep_all, tokenize_with_sentinels
 try:
     import nltk
@@ -109,18 +109,18 @@ class TopicModelFeature(Feature):
         return vecs
 
     def make_engine(self, docs):
-        print "building topic model"
+        logging.info("Building topic model")
         dct = self.dictionary.get_dict(docs)
         corpus = [dct.doc2bow(d) for d in docs]
         tfidf = self.dictionary.get_tfidf(docs)
         topic_model = self.topic_modeler(corpus=tfidf[corpus], id2word=dct,
                 num_topics=self.num_topics)
-        print topic_model
+        logging.debug(topic_model)
         return dct, tfidf, topic_model
 
     def make_vectors(self, data, dct, tfidf, lsi, n=None):
         vecs = []
-        print "Making topic vectors"
+        logging.info("Making topic vectors")
         for i, txt in enumerate(data):
             topic_vec = dict(
                     lsi[tfidf[dct.doc2bow(
@@ -158,7 +158,7 @@ class SentenceLSI(TopicModelFeature):
         for txt in data:
             sents.extend(sent_tokenizer.tokenize(txt))
         docs = [self.tokenizer(d) for d in sents]
-        print "docs", docs[0][:20]
+        logging.info("docs:\n" + str(docs[0][:20]))
         self._docs_hash = self.make_docs_hash(docs)
         return docs
 
@@ -188,27 +188,24 @@ class TFIDF(Feature):
         df = DataFrame([dict(row) for row in vecs], index=data.index)
         df.columns = ['%s_%s' % (dct[i], data.name) for i in df.columns]
         df = df.fillna(0)
-        print df
+        logging.debug(df)
         return df
 
 
 class NgramCounts(Feature):
     def __init__(self, feature, mindocs=50, maxterms=100000, maxdocs=1.,
-            bool_=False, verbose=False):
+            bool_=False):
         super(NgramCounts, self).__init__(feature)
         self._name = self._name + '_%d,%d,%f'%(mindocs, maxterms, maxdocs)
-        self.verbose = verbose
         self.dictionary = Dictionary(mindocs, maxterms, maxdocs)
         self.bool_ = bool_
 
     def _prepare(self, prep_data):
         prep_data = get_single_column(prep_data)
         docs = list(prep_data)
-        if self.verbose:
-            print docs[:10]
+        logging.debug(docs[:10])
         dct = self.dictionary.get_dict(docs)
-        if self.verbose:
-            print dct
+        logging.debug(dct)
         return dct
 
     def _apply(self, data, fitted_feature):
@@ -532,9 +529,12 @@ def char_kl(txt):
         else:
             q = c[ch]/tot
         try:
-            kl += p * math.log(p/q)
-        except:
-            print p, q, c, txt
+            kl += p * np.log(p/q)
+        except e:
+            logging.warn(e)
+            logging.warn("Arithmetic error with the following values:")
+            logging.warn("{p} * np.log({p} / {q})".format(p=p, q=q))
+            logging.warn("c={c}; text={txt}".format(c=c, txt=txt))
     return kl
 
 
@@ -567,18 +567,18 @@ class NgramCompare(NgramCounts):
         dct1 = self.dictionary(docs)
         dct1.filter_extremes(no_below=1, no_above=1.,
                 keep_n=2000)
-        print dct1
+        logging.debug(dct1)
         n = 2
         docs = [self.tokenizer(d) for d in raw_docs]
         docs = [[self.sep.join(toks[i:i+n]) for i in range(len(toks)-n+1) if
             all([t in dct1.token2id for t in toks[i:i+n]])] for toks in docs]
-        print "docs", docs[0][:80]
+        logging.debug("docs: " + str(docs[0][:80]))
         dct = self.dictionary(docs)
         docs = [self.tokenizer(d) for d in data]
         docs = [[self.sep.join(toks[i:i+n]) for i in range(len(toks)-n+1) if
             all([t in dct1.token2id for t in toks[i:i+n]])] for toks in docs]
-        print "docs", docs[0][:80]
-        print "unkown ngrams", [t for t in docs[0] if t not in
-                dct.token2id][:200]
+        logging.debug("docs: " + str(docs[0][:80]))
+        unknown = [t for t in docs[0] if t not in dct.token2id][:200]
+        logging.debug("Unknown ngrams: " + str(unkown))
         cnts = [sum([t not in dct.token2id for t in toks]) for toks in docs]
         return Series(cnts, index=data.index)

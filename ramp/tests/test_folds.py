@@ -33,8 +33,8 @@ class TestFolds(unittest.TestCase):
             te = te | test
             u_sofar = u_sofar.union(df.loc[test]['u'])
         # ensure all instances were used in test 
-        # TODO, currently failing
-        #self.assertEqual(len(te), n)
+        self.assertEqual(len(set(df['u'])), len(u_sofar))
+        self.assertEqual(len(te), n)
 
     def test_balanced_folds(self):
         n = 100000

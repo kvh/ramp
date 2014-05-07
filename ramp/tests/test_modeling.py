@@ -12,7 +12,7 @@ from ramp.estimators.base import Probabilities
 from ramp.features.base import F, Map
 from ramp.features.trained import Predictions
 from ramp.model_definition import ModelDefinition
-from ramp.modeling import fit_model, predict_model, cross_validate, build_and_package_model
+from ramp.modeling import fit_model, cross_validate, build_and_package_model
 from ramp.tests.test_features import make_data
 
 
@@ -78,10 +78,11 @@ class TestBasicModeling(unittest.TestCase):
         self.assertEqual(fe.fitx.shape, x.shape)
         self.assertEqual(fe.fity.shape, y.shape)
 
-    def test_predict_model(self):
+    def test_generate_test(self):
         model_def = self.make_model_def_basic()
         x, y, fitted_model = fit_model(model_def, self.data)
-        x, y_true, y_preds = predict_model(model_def, self.data[:3], fitted_model)
+        x, y_true = generate_test(model_def, self.data[:3], fitted_model)
+        y_preds = fitted_model.predict(x)
         self.assertEqual(len(x), 3)
         self.assertEqual(len(y_true), 3)
         self.assertEqual(len(y_preds), 3)
@@ -127,7 +128,7 @@ class TestNestedModeling(unittest.TestCase):
         self.assertEqual(fitted_model.fitted_features[1].trained_data.fitted_estimator.fitx.shape, (5, 1))
         self.assertEqual(x.shape, (len(self.data), 2))
 
-        x, y_true, y_preds = predict_model(model_def, self.data[:3], fitted_model)
+        x, y_true = generate_test(model_def, self.data[:3], fitted_model)
         assert_almost_equal(x[x.columns[1]].values, np.zeros(3))
 
 
