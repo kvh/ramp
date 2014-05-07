@@ -32,19 +32,11 @@ class PackagedModel(Storable):
         self.reports = reports
 
 
-def fit_model(model_def, data, prep_index=None, train_index=None):
+def generate_train(model_def, data, prep_index=None, train_index=None):
     # create training set
     x_train, fitted_features = build_featureset_safe(model_def.features, data, prep_index, train_index)
     y_train, fitted_target = build_target_safe(model_def.target, data, prep_index, train_index)
-
-    # fit estimator
-    model_def.estimator.fit(x_train, y_train)
-
-    # unnecesary?
-    fitted_estimator = FittedEstimator(model_def.estimator, x_train, y_train)
-
-    fitted_model = FittedModel(model_def, fitted_features, fitted_target, fitted_estimator)
-    return x_train, y_train, fitted_model
+    return x_train, y_train, fitted_features, fitted_target
 
 
 def generate_test(model_def, predict_data, fitted_model, compute_actuals=True):
@@ -55,6 +47,23 @@ def generate_test(model_def, predict_data, fitted_model, compute_actuals=True):
     else:
         y_test = None
     return x_test, y_test
+# ughh
+generate_test.__test__ = False
+
+def fit_model(model_def, data, prep_index=None, train_index=None):
+    x_train, y_train, fitted_features, fitted_target = generate_train(model_def,
+                                                                      data,
+                                                                      prep_index,
+                                                                      train_index)
+
+    # fit estimator
+    model_def.estimator.fit(x_train, y_train)
+
+    # unnecesary?
+    fitted_estimator = FittedEstimator(model_def.estimator, x_train, y_train)
+
+    fitted_model = FittedModel(model_def, fitted_features, fitted_target, fitted_estimator)
+    return x_train, y_train, fitted_model
 
 
 def cross_validate(model_def, data, folds, reporters=[], repeat=1):
@@ -73,10 +82,10 @@ def cross_validate(model_def, data, folds, reporters=[], repeat=1):
             elif len(fold) == 3:
                 train_index, test_index, prep_index = fold
             else:
-                raise ValueError("Fold is not of right dimension (%d)"%len(fold))
+                raise ValueError("Fold is not of right dimension (%d, not 2 or 3)"%len(fold))
             x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
             x_test, y_test = generate_test(model_def, data, fitted_model)
-            y_preds = fitted_model.predict(x_test)
+            y_preds = fitted_model.fitted_estimator.predict(x_test)
             result = Result(x_train, x_test, y_train, y_test, y_preds, model_def, fitted_model, data)
             results.append(result)
             
@@ -88,7 +97,7 @@ def cross_validate(model_def, data, folds, reporters=[], repeat=1):
 def build_and_package_model(model_def, data, data_description, evaluate=False,
                             reporters=None, prep_index=None, train_index=None):
     x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
-    y_preds = fitted_model.predict(x_train)
+    y_preds = fitted_model.fitted_estimator.predict(x_train)
     result = None
     if evaluate:
         # only evaluate on train (this seems reasonable)

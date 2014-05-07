@@ -11,7 +11,7 @@ from ramp.builders import *
 from ramp.features.base import F, Map
 from ramp.metrics import *
 from ramp.model_definition import ModelDefinition
-from ramp.modeling import fit_model, generate_test
+from ramp import modeling
 from ramp.reporters import *
 from ramp.result import Result
 from ramp.tests.test_features import make_data

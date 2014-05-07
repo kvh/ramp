@@ -12,7 +12,6 @@ from ramp.estimators.base import Probabilities
 from ramp.features.base import F, Map
 from ramp.features.trained import Predictions
 from ramp.model_definition import ModelDefinition
-from ramp.modeling import fit_model, generate_test
 from ramp.selectors import BinaryFeatureSelector
 from ramp.tests.test_features import make_data
 

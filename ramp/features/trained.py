@@ -3,7 +3,7 @@ from pandas import Series, DataFrame, concat
 
 from ramp.builders import build_target_safe
 from ramp.features.base import to_feature, ComboFeature, Feature, AllDataFeature
-from ramp.modeling import fit_model
+from ramp.modeling import fit_model, generate_test
 from ramp.utils import make_folds, get_single_column, reindex_safe
 
 
@@ -73,7 +73,7 @@ class Predictions(TrainedFeature):
 
     def _predict(self, fitted_model, predict_data):
         x_test, y_true = generate_test(self.model_def, predict_data, fitted_model)
-        y_preds = self.model_def.predict(x_test)
+        y_preds = self.model_def.estimator.predict(x_test)
         return y_preds
 
     def make_cross_validated_models(self, data, fitted_feature):
@@ -84,7 +84,7 @@ class Residuals(Predictions):
 
     def _predict(self, fitted_model, predict_data):
         x_test, y_true = generate_test(self.model_def, predict_data, fitted_model)
-        y_preds = self.model_def.predict(x_test)
+        y_preds = self.model_def.estimator.predict(x_test)
         return y_preds - y_true
 
 
