@@ -153,7 +153,7 @@ def cv(config, context, folds=5, repeat=2, print_results=False,
     for reporter in config.reporters:
         t.add_row([reporter.__class__.__name__, str(reporter)])
         reporter.reset()
-     if print_results:
+    if print_results:
         print t
     
     return result

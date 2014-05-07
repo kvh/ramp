@@ -15,7 +15,9 @@ of features, models, and metrics
 
 import itertools
 from features.base import BaseFeature, Feature
+from estimators.base import Estimator, Probabilities
 from utils import _pprint, stable_repr
+import logging
 import copy
 
 __all__ = ['ModelDefinition', 'model_definition_factory']
@@ -47,9 +49,11 @@ class ModelDefinition(object):
             in the analysis.
 
         estimator: estimator (compatible with sklearn estimators), default None
-            An estimator instance compatible with sklearn estimator 
-            conventions: Has fit(x, y) and predict(y) methods.
-
+            An estimator instance compatible with sklearn estimator
+            conventions: Has fit(x, y) and predict(y) methods. If the object is
+            not a ramp Estimator, it will be wrapped to add sensible
+            prediction methods.
+        
         predictions_name: string, default None
             A unique string used as a column identifier for model predictions. 
             Must be unique among all feature names: eg '$logreg_predictions$'
@@ -99,7 +103,16 @@ class ModelDefinition(object):
         else: 
             self.features = None
             
-        self.estimator = estimator
+        # Wrap estimator to return probabilities in the case of a classifier
+        if isinstance(estimator, Estimator):
+            self.estimator = estimator
+        elif not (hasattr(estimator, "fit") and hasattr(estimator, "predict")):
+            raise ValueError, "Invalid estimator: %s" % estimator
+        elif hasattr(estimator, "predict_proba"):
+            self.estimator = Probabilities(estimator)
+        else:
+            self.estimator = Estimator(estimator)
+        
         self.column_subset = column_subset
 
     def __getstate__(self):
@@ -134,7 +147,7 @@ class ModelDefinition(object):
             feature_count = 0
         feature_hash = 'feathash:' + str(hash(tuple(self.features)))
         return (str(self.estimator), feature_count, feature_hash, self.target)
-
+    
     def update(self, dct):
         """Update the configuration with new parameters. Must use same 
         kwargs as __init__"""

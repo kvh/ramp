@@ -1,5 +1,3 @@
-import logging
-
 from ramp.builders import build_featureset_safe, build_target_safe, apply_featureset_safe, apply_target_safe
 from ramp.estimators.base import FittedEstimator
 from ramp.folds import make_default_folds
@@ -49,15 +47,14 @@ def fit_model(model_def, data, prep_index=None, train_index=None):
     return x_train, y_train, fitted_model
 
 
-def predict_model(model_def, predict_data, fitted_model, compute_actuals=True):
+def generate_test(model_def, predict_data, fitted_model, compute_actuals=True):
     # create test set and predict
     x_test = apply_featureset_safe(model_def.features, predict_data, fitted_model.fitted_features)
     if compute_actuals:
         y_test = apply_target_safe(model_def.target, predict_data, fitted_model.fitted_target)
     else:
         y_test = None
-    y_preds = fitted_model.fitted_estimator.predict(x_test)
-    return x_test, y_test, y_preds
+    return x_test, y_test
 
 
 def cross_validate(model_def, data, folds, reporters=[], repeat=1):
@@ -78,10 +75,10 @@ def cross_validate(model_def, data, folds, reporters=[], repeat=1):
             else:
                 raise ValueError("Fold is not of right dimension (%d)"%len(fold))
             x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
-            x_test, y_test, y_preds = predict_model(model_def, data, fitted_model)
+            x_test, y_test = generate_test(model_def, data, fitted_model)
+            y_preds = fitted_model.predict(x_test)
             result = Result(x_train, x_test, y_train, y_test, y_preds, model_def, fitted_model, data)
             results.append(result)
-            logging.debug(result.__dict__)
             
             for reporter in reporters:
                 reporter.update(result)
@@ -91,10 +88,10 @@ def cross_validate(model_def, data, folds, reporters=[], repeat=1):
 def build_and_package_model(model_def, data, data_description, evaluate=False,
                             reporters=None, prep_index=None, train_index=None):
     x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
+    y_preds = fitted_model.predict(x_train)
     result = None
     if evaluate:
         # only evaluate on train (this seems reasonable)
-        y_preds = fitted_model.fitted_estimator.predict(x_train)
         result = Result(x_train, x_train, y_train, y_train, y_preds, model_def, fitted_model, data)
         #TODO
         # reports = evaluate(result, reporters)
