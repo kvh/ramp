@@ -209,8 +209,9 @@ class TestTrainedFeature(unittest.TestCase):
         assert_almost_equal(r.values, np.zeros(len(self.data)))
         fitted_model = ff.trained_data
         #TODO uggh fix this
-        assert_almost_equal(fitted_model.fitted_estimator.fitx.values.transpose()[1], self.data['a'].values)
-        assert_almost_equal(fitted_model.fitted_estimator.predictx.values.transpose()[1], self.data['a'].values)
+        print fitted_model.fitted_estimator.fitx
+        assert_almost_equal(fitted_model.fitted_estimator.fitx.transpose()[1], self.data['a'].values)
+        assert_almost_equal(fitted_model.fitted_estimator.predictx.transpose()[1], self.data['a'].values)
 
     def test_predictions_held_out(self):
         model_def = self.make_model_def_basic()
@@ -219,8 +220,8 @@ class TestTrainedFeature(unittest.TestCase):
         r = r[r.columns[0]]
         assert_almost_equal(r.values, np.zeros(len(self.data)))
         fitted_model = ff.trained_data
-        assert_almost_equal(fitted_model.fitted_estimator.fitx.values.transpose()[1], self.data['a'].values[:5])
-        assert_almost_equal(fitted_model.fitted_estimator.predictx.values.transpose()[1], self.data['a'].values)
+        assert_almost_equal(fitted_model.fitted_estimator.fitx.transpose()[1], self.data['a'].values[:5])
+        assert_almost_equal(fitted_model.fitted_estimator.predictx.transpose()[1], self.data['a'].values)
 
     def test_residuals(self):
         model_def = self.make_model_def_basic()
@@ -229,8 +230,8 @@ class TestTrainedFeature(unittest.TestCase):
         r = r[r.columns[0]]
         assert_almost_equal(r.values, 0 - self.data['b'].values)
         fitted_model = ff.trained_data
-        assert_almost_equal(fitted_model.fitted_estimator.fitx.values.transpose()[1], self.data['a'].values)
-        assert_almost_equal(fitted_model.fitted_estimator.predictx.values.transpose()[1], self.data['a'].values)
+        assert_almost_equal(fitted_model.fitted_estimator.fitx.transpose()[1], self.data['a'].values)
+        assert_almost_equal(fitted_model.fitted_estimator.predictx.transpose()[1], self.data['a'].values)
 
     # def test_predictions_cv(self):
     #     idx = 10

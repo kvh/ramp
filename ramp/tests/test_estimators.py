@@ -6,7 +6,9 @@ import numpy as np
 import pandas as pd
 from sklearn import linear_model
 
-from ramp.estimators import Probabilities, BinaryProbabilities
+from ramp.estimators import (Probabilities,
+                             BinaryProbabilities,
+                             wrap_sklearn_like_estimator)
 from ramp import shortcuts
 from ramp.tests.test_features import make_data
 
@@ -29,7 +31,7 @@ class TestEstimators(unittest.TestCase):
 
     def test_probabilities(self):
         inner_est = DummyProbEstimator(3)
-        est = Probabilities(inner_est)
+        est = wrap_sklearn_like_estimator(inner_est)
 
         # test attr wrap
         self.assertEqual(est._coefs, inner_est._coefs)
@@ -40,7 +42,7 @@ class TestEstimators(unittest.TestCase):
 
     def test_binary_probabilities(self):
         inner_est = DummyProbEstimator(2)
-        est = BinaryProbabilities(inner_est)
+        est = wrap_sklearn_like_estimator(inner_est)
 
         # test attr wrap
         self.assertEqual(est._coefs, inner_est._coefs)
@@ -52,7 +54,7 @@ class TestEstimators(unittest.TestCase):
         # test multi-class
         self.data['target'] = [0] * 5 + [1] * 3 + [2] * 2
         inner_est = linear_model.LogisticRegression()
-        est = Probabilities(inner_est)
+        est = wrap_sklearn_like_estimator(inner_est)
         x = self.data[['a', 'b']]
         est.fit(x, self.data.target)
         preds = est.predict(x)
@@ -65,6 +67,7 @@ class TestEstimators(unittest.TestCase):
         est.fit(x, self.data.target)
         preds = est.predict(x)
         self.assertEqual(preds.shape, (10, ))
+        
 
 if __name__ == '__main__':
     unittest.main()

@@ -8,6 +8,7 @@ from sklearn import metrics
 
 from ramp.utils import pprint_scores
 
+
 class Reporter(object):
     """
     A reporter tracks the results of a series of model runs, as well as summary
@@ -15,8 +16,6 @@ class Reporter(object):
     """
     defaults = dict(
             )
-    summary = []
-    results = []
     
     @classmethod
     def factory(cls, *args, **kwargs):
@@ -30,6 +29,8 @@ class Reporter(object):
         self.config = {}
         self.config.update(self.defaults)
         self.config.update(kwargs)
+        self.summary = []
+        self.results = []
     
     def __str__(self):
         return str(self.summary)
@@ -58,13 +59,16 @@ class Reporter(object):
         # TODO: Reporters should know how to combine with other reporters of the same kind to produce aggregate reports.
         raise NotImplementedError
 
+
 class ModelOutliers(Reporter):
     pass
+
 
 class ConfusionMatrix(Reporter):
     @staticmethod
     def summarize(result):
         return metrics.confusion_matrix(result.y_test, result.y_preds)
+
 
 class MislabelInspector(Reporter):
     @staticmethod
@@ -79,6 +83,7 @@ class MislabelInspector(Reporter):
                 ret_strings.append(result.y_test.ix[ind])
                 ret.append(ret_strings)
         return '\n'.join(ret)
+
 
 class RFImportance(Reporter):
     importance_arrays = []
@@ -105,6 +110,7 @@ class RFImportance(Reporter):
     
     def _repr_html_(self):
         return self.summary._repr_html_()
+
     
 class PRCurve(Reporter):
     def summarize(self, result):
@@ -114,6 +120,7 @@ class PRCurve(Reporter):
                  'Recall': r}, 
                 index=t)
         return ret
+
     
     def plot(self):
         try:
@@ -131,6 +138,7 @@ class PRCurve(Reporter):
         pl.title('ROC')
         pl.legend(loc="lower right")
         pl.show()
+
 
 class ROCCurve(Reporter):
     def summarize(self, result):
@@ -158,6 +166,7 @@ class ROCCurve(Reporter):
         pl.legend(loc="lower right")
         pl.show()
 
+
 class OOBEst(Reporter):
     def update(self, model):
         try:
@@ -171,6 +180,7 @@ class OOBEst(Reporter):
             return None
         else:
             return "OOB Est: %s" % (pprint_scores(self.summary))
+
 
 class MetricReporter(Reporter):
     defaults = dict(
@@ -252,9 +262,7 @@ class DualThresholdMetricReporter(MetricReporter):
         else:
             thresholds = pd.Series()
             for result in self.results:
-                print result.y_preds
-                thresholds = pd.concat(thresholds, result.y_preds).unique()
-                print thresholds
+                thresholds = pd.concat([thresholds, result.y_preds]).unique()
             return list(thresholds)
     
     def reset_thresholds():

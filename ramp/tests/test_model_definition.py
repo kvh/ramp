@@ -10,6 +10,7 @@ from pandas import DataFrame, Series, Index
 from pandas.util.testing import assert_almost_equal
 from sklearn import linear_model
 
+from ramp import estimators
 from ramp.features.base import F, Map
 from ramp.model_definition import ModelDefinition, model_definition_factory
 
@@ -19,7 +20,7 @@ class ModelDefinitionTest(unittest.TestCase):
     def test_model_def_factory(self):
         base = ModelDefinition(
                 features=['a'],
-                estimator='model',
+                estimator=estimators.Estimator('dummy'),
                 target='y'
                 )
         factory = model_definition_factory(base,
@@ -29,8 +30,8 @@ class ModelDefinitionTest(unittest.TestCase):
                 ['a','b','c','y'],
                 ],
             estimator=[
-                'model2',
-                'model3',
+                estimators.Estimator('dummy'),
+                estimators.Estimator('dummy2'),
                 ]
             )
         mds = list(factory)
@@ -48,6 +49,7 @@ class ModelDefinitionTest(unittest.TestCase):
         # lambdas are not picklable, should fail
         c = ModelDefinition(
                 features=['a', F('a'), Map('a', lambda x: len(x))],
+                estimator=linear_model.LogisticRegression()
                 )
         self.assertRaises(pickle.PicklingError, pickle.dumps, c)
 

@@ -1,10 +1,11 @@
 import types
 
-__all__ = ['Wrapper', 'Estimator', 'FittedEstimator', 'Probabilities', 'BinaryProbabilities']
+__all__ = ['Wrapper', 'Estimator', 'FittedEstimator',
+           'Probabilities', 'BinaryProbabilities', 'wrap_sklearn_like_estimator']
 
 
 class Wrapper(object):
-    def __init__(self,obj):
+    def __init__(self, obj):
         self._obj = obj
     
     def __getattr__(self, attr):
@@ -12,7 +13,7 @@ class Wrapper(object):
         if hasattr(self._obj, attr):
             attr_value = getattr(self._obj,attr)
             
-            if isinstance(attr_value,types.MethodType):
+            if isinstance(attr_value, types.MethodType):
                 def callable(*args, **kwargs):
                     return attr_value(*args, **kwargs)
                 return callable
@@ -21,6 +22,9 @@ class Wrapper(object):
             
         else:
             raise AttributeError
+
+    def __getstate__(self): return self.__dict__
+    def __setstate__(self, d): self.__dict__.update(d)
 
 
 class Estimator(Wrapper):
@@ -65,7 +69,7 @@ class Probabilities(Estimator):
 
     def predict(self, x):
         probs = self.estimator.predict_proba(x)
-        if self.binary:
+        if probs.shape[1] == 2 or self.binary:
             return probs[:,1]
         return probs
 
@@ -80,3 +84,18 @@ class FittedEstimator(Wrapper):
         # compute metadata
         self.fitted_estimator = fitted_estimator
         super(FittedEstimator, self).__init__(fitted_estimator)
+
+
+def wrap_sklearn_like_estimator(estimator):
+    if isinstance(estimator, Estimator):
+        return estimator
+    elif estimator is None:
+        return None
+    elif not (hasattr(estimator, "fit") and (hasattr(estimator, "predict")
+                                          or hasattr(estimator, "predict_proba"))):
+        raise ValueError, "Invalid estimator: %s" % estimator
+    elif hasattr(estimator, "predict_proba"):
+        return Probabilities(estimator)
+    else:
+        return Estimator(estimator)
+

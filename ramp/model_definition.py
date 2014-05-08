@@ -15,7 +15,7 @@ of features, models, and metrics
 
 import itertools
 from features.base import BaseFeature, Feature
-from estimators.base import Estimator, Probabilities
+from estimators.base import wrap_sklearn_like_estimator
 from utils import _pprint, stable_repr
 import logging
 import copy
@@ -104,15 +104,8 @@ class ModelDefinition(object):
             self.features = None
             
         # Wrap estimator to return probabilities in the case of a classifier
-        if isinstance(estimator, Estimator):
-            self.estimator = estimator
-        elif not (hasattr(estimator, "fit") and hasattr(estimator, "predict")):
-            raise ValueError, "Invalid estimator: %s" % estimator
-        elif hasattr(estimator, "predict_proba"):
-            self.estimator = Probabilities(estimator)
-        else:
-            self.estimator = Estimator(estimator)
-        
+        self.estimator = wrap_sklearn_like_estimator(estimator)
+
         self.column_subset = column_subset
 
     def __getstate__(self):
