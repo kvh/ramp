@@ -59,6 +59,7 @@ def generate_test(model_def, predict_data, fitted_model, compute_actuals=True):
 # ughh, this is so nose doesn't pick this up as a test
 generate_test.__test__ = False
 
+
 def fit_model(model_def, data, prep_index=None, train_index=None):
     x_train, y_train, fitted_features, fitted_target = generate_train(model_def,
                                                                       data,
@@ -74,8 +75,8 @@ def fit_model(model_def, data, prep_index=None, train_index=None):
     return x_train, y_train, fitted_model
 
 
-def predict_with_model(model_def, data, fitted_model):
-    x_test, y_test = generate_test(model_def, data, fitted_model)
+def predict_with_model(model_def, data, fitted_model, compute_actuals=False):
+    x_test, y_test = generate_test(model_def, data, fitted_model, compute_actuals)
     y_preds = fitted_model.fitted_estimator.predict(x_test)
     return pd.Series(y_preds, index=x_test.index)
 

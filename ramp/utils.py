@@ -113,7 +113,7 @@ def stable_repr(obj):
 
 # this could be improved
 def is_categorical(series):
-    return series.dtype == np.dtype('O')
+    return series.dtype.kind not in 'biufc'
 
 
 stop_words = set([
