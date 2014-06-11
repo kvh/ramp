@@ -57,7 +57,6 @@ class TestBasicFeature(unittest.TestCase):
         self.assertEqual(f.feature, math.e)
         self.assertEqual(str(f), str(math.e))
         self.assertEqual(repr(f), repr(math.e))
-        print f.unique_name
         self.assertEqual(f.unique_name, str(math.e))
 
     def test_combofeature_reprs(self):
@@ -209,7 +208,6 @@ class TestTrainedFeature(unittest.TestCase):
         assert_almost_equal(r.values, np.zeros(len(self.data)))
         fitted_model = ff.trained_data
         #TODO uggh fix this
-        print fitted_model.fitted_estimator.fitx
         assert_almost_equal(fitted_model.fitted_estimator.fitx.transpose()[1], self.data['a'].values)
         assert_almost_equal(fitted_model.fitted_estimator.predictx.transpose()[1], self.data['a'].values)
 

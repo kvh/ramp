@@ -1,14 +1,14 @@
-  # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 '''
 Features: Base
 -------
 
 The Base Features module provides a set of abstract base classes and simple
 feature definitions (such as Length, Log, Power, etc). The ABC's can be built
-upon, such as in the text or combo modules. 
+upon, such as in the text or combo modules.
 
-These Feature classes allow for chaining and combining feature sets to be 
-iterated upon in the Configurator Factory. 
+These Feature classes allow for chaining and combining feature sets to be
+iterated upon in the Configurator Factory.
 
 '''
 from hashlib import md5
@@ -20,6 +20,7 @@ import numpy as np
 from pandas import Series, DataFrame, concat
 
 from ramp.store import Storable
+from ramp import utils
 from ramp.utils import (_pprint, get_np_hashable, key_from_index,
                         get_single_column, stable_repr, reindex_safe)
 
@@ -168,6 +169,10 @@ class ComboFeature(BaseFeature):
         Inheriting classes responsible for setting human-readable description of
         feature and parameters on _name attribute.
         """
+        self.set_features(features)
+        self.set_name()
+
+    def set_features(self, features):
         self.features = []
         # handle single feature as well
         if not isinstance(features, list) and not isinstance(features, tuple):
@@ -178,7 +183,6 @@ class ComboFeature(BaseFeature):
             if isinstance(feature, int) or isinstance(feature, float):
                 feature = ConstantFeature(feature)
             self.features.append(feature)
-        self.set_name()
 
     def set_name(self):
         cname = self.__class__.__name__
@@ -403,7 +407,7 @@ class MissingIndicatorAndFill(Feature):
 #         return {"dropped_columns": dropped_cols}
 
 #     def combine(self, datas):
-#         data = concat(datas, axis=1)        
+#         data = concat(datas, axis=1)
 #         cols = fitted_feature.prepped_data['dropped_columns']
 #         return data.drop(cols, axis=1)
 
@@ -517,19 +521,25 @@ class AsFactorIndicators(Feature):
     if include_all is True otherwise two columns (the
     third implied by zeros on the other two columns)
     """
-    def __init__(self, feature, levels=None, include_all=True):
+    def __init__(self, feature, levels=None, include_all=True, only_if_categorical=False):
         super(AsFactorIndicators, self).__init__(feature)
         self.levels = levels
         self.include_all = include_all
+        self.only_if_categorical = only_if_categorical
 
     def _prepare(self, data):
+        data = get_single_column(data)
+        if self.only_if_categorical and not utils.is_categorical(data):
+            return None
         levels = self.levels
         if not levels:
-            levels = sorted(set(get_single_column(data)))
+            levels = sorted(set(data))
         return levels
 
     def _apply(self, data, fitted_feature):
         factors = fitted_feature.prepped_data
+        if factors is None:
+            return data
         data = get_single_column(data)
         d = DataFrame(index=data.index)
         if self.include_all:

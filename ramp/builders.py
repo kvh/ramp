@@ -70,6 +70,18 @@ def apply_featureset_safe(features, data, fitted_features):
     return concat(feature_datas, axis=1)
 
 
+def filter_data_and_indexes(model_def, data, prep_index=None, train_index=None):
+    for data_filter in model_def.filters:
+        data = data_filter(data)
+    if prep_index is not None:
+        prep_index = data.index & prep_index
+    if train_index is not None:
+        train_index = data.index & train_index
+    return data, prep_index, train_index
+
+def filter_data(model_def, data):
+    return filter_data_and_indexes(model_def, data)[0]
+
 
 # build_featureset = build_featureset_safe
 # build_target = build_target_safe

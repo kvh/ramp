@@ -1,4 +1,11 @@
-from ramp.builders import build_featureset_safe, build_target_safe, apply_featureset_safe, apply_target_safe
+import pandas as pd
+
+from ramp.builders import (build_featureset_safe,
+                           build_target_safe,
+                           apply_featureset_safe,
+                           apply_target_safe,
+                           filter_data_and_indexes,
+                           filter_data)
 from ramp.estimators.base import FittedEstimator
 from ramp.folds import make_default_folds
 from ramp.result import Result
@@ -34,20 +41,22 @@ class PackagedModel(Storable):
 
 def generate_train(model_def, data, prep_index=None, train_index=None):
     # create training set
+    data, prep_index, train_index = filter_data_and_indexes(model_def, data, prep_index, train_index)
     x_train, fitted_features = build_featureset_safe(model_def.features, data, prep_index, train_index)
     y_train, fitted_target = build_target_safe(model_def.target, data, prep_index, train_index)
     return x_train, y_train, fitted_features, fitted_target
 
 
 def generate_test(model_def, predict_data, fitted_model, compute_actuals=True):
-    # create test set and predict
+    # create test set
+    predict_data = filter_data(model_def, predict_data)
     x_test = apply_featureset_safe(model_def.features, predict_data, fitted_model.fitted_features)
     if compute_actuals:
         y_test = apply_target_safe(model_def.target, predict_data, fitted_model.fitted_target)
     else:
         y_test = None
     return x_test, y_test
-# ughh
+# ughh, this is so nose doesn't pick this up as a test
 generate_test.__test__ = False
 
 def fit_model(model_def, data, prep_index=None, train_index=None):
@@ -59,11 +68,16 @@ def fit_model(model_def, data, prep_index=None, train_index=None):
     # fit estimator
     model_def.estimator.fit(x_train, y_train)
 
-    # unnecesary?
     fitted_estimator = FittedEstimator(model_def.estimator, x_train, y_train)
 
     fitted_model = FittedModel(model_def, fitted_features, fitted_target, fitted_estimator)
     return x_train, y_train, fitted_model
+
+
+def predict_with_model(model_def, data, fitted_model):
+    x_test, y_test = generate_test(model_def, data, fitted_model)
+    y_preds = fitted_model.fitted_estimator.predict(x_test)
+    return pd.Series(y_preds, index=x_test.index)
 
 
 def cross_validate(model_def, data, folds, reporters=[], repeat=1):
@@ -73,7 +87,7 @@ def cross_validate(model_def, data, folds, reporters=[], repeat=1):
 
     if isinstance(folds, int):
         folds = make_default_folds(num_folds=folds, data=data)
-    
+
     for i in range(repeat):
         for fold in folds:
             if len(fold) == 2:
@@ -88,13 +102,13 @@ def cross_validate(model_def, data, folds, reporters=[], repeat=1):
             y_preds = fitted_model.fitted_estimator.predict(x_test)
             result = Result(x_train, x_test, y_train, y_test, y_preds, model_def, fitted_model, data)
             results.append(result)
-            
+
             for reporter in reporters:
                 reporter.update(result)
     return results, reporters
 
 
-def build_and_package_model(model_def, data, data_description, evaluate=False,
+def build_and_package_model(model_def, data, data_description=None, evaluate=False,
                             reporters=None, prep_index=None, train_index=None):
     x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
     y_preds = fitted_model.fitted_estimator.predict(x_train)

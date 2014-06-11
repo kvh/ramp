@@ -1,7 +1,9 @@
-import re
-import numpy as np
-import random
 from hashlib import md5
+import numpy as np
+import pandas as pd
+import random
+import re
+
 
 
 def _pprint(params):
@@ -80,7 +82,7 @@ def get_np_hashable(obj):
 
 def key_from_index(idx):
     return get_np_hash(idx.values)
-    
+
 
 def get_single_column(df):
     assert len(df.columns) == 1
@@ -107,6 +109,12 @@ def stable_repr(obj):
     return '%s(%s)' % (
             obj.__class__.__name__,
             state)
+
+
+# this could be improved
+def is_categorical(series):
+    return series.dtype == np.dtype('O')
+
 
 stop_words = set([
     'http',

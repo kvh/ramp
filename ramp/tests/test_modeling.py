@@ -90,6 +90,8 @@ class TestBasicModeling(unittest.TestCase):
         self.assertEqual(len(x), 3)
         self.assertEqual(len(y_true), 3)
         self.assertEqual(len(y_preds), 3)
+        y_preds2 = modeling.predict_with_model(model_def, self.data[:3], fitted_model)
+        assert_almost_equal(y_preds, y_preds2.values)
 
     def test_cross_validate(self):
         model_def = self.make_model_def_basic()
