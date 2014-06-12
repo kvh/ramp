@@ -75,10 +75,20 @@ def fit_model(model_def, data, prep_index=None, train_index=None):
     return x_train, y_train, fitted_model
 
 
+def build_fitted_model(*args, **kwargs):
+    x, y, fitted_model = fit_model(*args, **kwargs)
+    return fitted_model
+
+
 def predict_with_model(model_def, data, fitted_model, compute_actuals=False):
     x_test, y_test = generate_test(model_def, data, fitted_model, compute_actuals)
     y_preds = fitted_model.fitted_estimator.predict(x_test)
     return pd.Series(y_preds, index=x_test.index)
+
+
+def fit_and_predict(model_def, data, prep_index=None, train_index=None):
+    x, y, fitted_model = fit_model(model_def, data, prep_index, train_index)
+    return predict_with_model(model_def, data, fitted_model)
 
 
 def cross_validate(model_def, data, folds, reporters=[], repeat=1):

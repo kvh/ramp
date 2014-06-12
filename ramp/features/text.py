@@ -8,7 +8,7 @@ from pandas import DataFrame, read_csv, concat, Series
 try:
     import gensim
 except ImportError:
-    logging.exception("""This requires the gensim module:
+    logging.warning("""Certain text Features require the gensim module: \
            http://radimrehurek.com/gensim/index.html""")
 from ramp.utils import bag_of_words, cosine, tokenize, tokenize_keep_all, tokenize_with_sentinels
 try:
