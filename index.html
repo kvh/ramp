@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Architects+Daughter' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
+
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <title>Ramp by kvh</title>
+  </head>
+
+  <body>
+    <header>
+      <div class="inner">
+        <h1>Ramp</h1>
+        <h2>Rapid Machine Learning Prototyping in Python</h2>
+        <a href="https://github.com/kvh/ramp" class="button"><small>View project on</small>GitHub</a>
+      </div>
+    </header>
+
+    <div id="content-wrapper">
+      <div class="inner clearfix">
+        <section id="main-content">
+          <h1>
+<a name="ramp---rapid-machine-learning-prototyping" class="anchor" href="#ramp---rapid-machine-learning-prototyping"><span class="octicon octicon-link"></span></a>Ramp - Rapid Machine Learning Prototyping</h1>
+
+<p>Ramp is a python library for rapid prototyping of machine learning
+solutions. It's a light-weight <a href="http://pandas.pydata.org">pandas</a>-based 
+machine learning framework pluggable with existing 
+python machine learning and statistics tools 
+(<a href="http://scikit-learn.org">scikit-learn</a>, <a href="http://rpy.sourceforge.net/rpy2.html">rpy2</a>, etc.).
+Ramp provides a simple, declarative syntax for
+exploring features, algorithms and transformations quickly and
+efficiently.</p>
+
+<p>Documentation: <a href="http://ramp.readthedocs.org">http://ramp.readthedocs.org</a></p>
+
+<p><strong>Why Ramp?</strong></p>
+
+<ul>
+<li><p><strong>Clean, declarative syntax</strong></p></li>
+<li>
+<p><strong>Complex feature transformations</strong></p>
+
+<p>Chain and combine features:</p>
+</li>
+</ul><div class="highlight highlight-python"><pre><span class="n">Normalize</span><span class="p">(</span><span class="n">Log</span><span class="p">(</span><span class="s">'x'</span><span class="p">))</span>
+<span class="n">Interactions</span><span class="p">([</span><span class="n">Log</span><span class="p">(</span><span class="s">'x1'</span><span class="p">),</span> <span class="p">(</span><span class="n">F</span><span class="p">(</span><span class="s">'x2'</span><span class="p">)</span> <span class="o">+</span> <span class="n">F</span><span class="p">(</span><span class="s">'x3'</span><span class="p">))</span> <span class="o">/</span> <span class="mi">2</span><span class="p">])</span>
+</pre></div>
+
+<pre><code>Reduce feature dimension:
+</code></pre>
+
+<div class="highlight highlight-python"><pre><span class="n">DimensionReduction</span><span class="p">([</span><span class="n">F</span><span class="p">(</span><span class="s">'x</span><span class="si">%d</span><span class="s">'</span><span class="o">%</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100</span><span class="p">)],</span> <span class="n">decomposer</span><span class="o">=</span><span class="n">PCA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+</pre></div>
+
+<pre><code>Incorporate residuals or predictions to blend with other models:
+</code></pre>
+
+<div class="highlight highlight-python"><pre><span class="n">Residuals</span><span class="p">(</span><span class="n">simple_model_def</span><span class="p">)</span> <span class="o">+</span> <span class="n">Predictions</span><span class="p">(</span><span class="n">complex_model_def</span><span class="p">)</span>
+</pre></div>
+
+<ul>
+<li>
+<p><strong>Data context awareness</strong></p>
+
+<p>Any feature that uses the target ("y") variable will automatically respect the
+current training and test sets. Similarly, preparation data (a feature's mean and stdev, for example)
+is stored and tracked between data contexts.</p>
+</li>
+<li>
+<p><strong>Composability</strong></p>
+
+<p>All features, estimators, and their fits are composable, pluggable and storable.</p>
+</li>
+<li>
+<p><strong>Easy extensibility</strong></p>
+
+<p>Ramp has a simple API, allowing you to plug in estimators from
+scikit-learn, rpy2 and elsewhere, or easily build your own feature
+transformations, metrics, feature selectors, reporters, or estimators.</p>
+</li>
+</ul><h2>
+<a name="quick-start" class="anchor" href="#quick-start"><span class="octicon octicon-link"></span></a>Quick start</h2>
+
+<p><a href="http://www.kenvanharen.com/2012/11/getting-started-with-ramp-detecting.html">Getting started with Ramp: Classifying insults</a></p>
+
+<p>Or, the quintessential Iris example:</p>
+
+<div class="highlight highlight-python"><pre><span class="kn">import</span> <span class="nn">pandas</span>
+<span class="kn">from</span> <span class="nn">ramp</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="nn">urllib2</span>
+<span class="kn">import</span> <span class="nn">sklearn</span>
+<span class="kn">from</span> <span class="nn">sklearn</span> <span class="kn">import</span> <span class="n">decomposition</span>
+
+
+<span class="c"># fetch and clean iris data from UCI</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">urllib2</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span>
+    <span class="s">"http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data"</span><span class="p">))</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">drop</span><span class="p">([</span><span class="mi">149</span><span class="p">])</span> <span class="c"># bad line</span>
+<span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s">'sepal_length'</span><span class="p">,</span> <span class="s">'sepal_width'</span><span class="p">,</span> <span class="s">'petal_length'</span><span class="p">,</span> <span class="s">'petal_width'</span><span class="p">,</span> <span class="s">'class'</span><span class="p">]</span>
+<span class="n">data</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">columns</span>
+
+
+<span class="c"># all features</span>
+<span class="n">features</span> <span class="o">=</span> <span class="p">[</span><span class="n">FillMissing</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+
+<span class="c"># features, log transformed features, and interaction terms</span>
+<span class="n">expanded_features</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">features</span> <span class="o">+</span>
+    <span class="p">[</span><span class="n">Log</span><span class="p">(</span><span class="n">F</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">features</span><span class="p">]</span> <span class="o">+</span>
+    <span class="p">[</span>
+        <span class="n">F</span><span class="p">(</span><span class="s">'sepal_width'</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="n">combo</span><span class="o">.</span><span class="n">Interactions</span><span class="p">(</span><span class="n">features</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+
+<span class="c"># Define several models and feature sets to explore,</span>
+<span class="c"># run 5 fold cross-validation on each and print the results.</span>
+<span class="c"># We define 2 models and 4 feature sets, so this will be</span>
+<span class="c"># 4 * 2 = 8 models tested.</span>
+<span class="n">shortcuts</span><span class="o">.</span><span class="n">cv_factory</span><span class="p">(</span>
+    <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+
+    <span class="n">target</span><span class="o">=</span><span class="p">[</span><span class="n">AsFactor</span><span class="p">(</span><span class="s">'class'</span><span class="p">)],</span>
+    <span class="n">metrics</span><span class="o">=</span><span class="p">[</span>
+        <span class="p">[</span><span class="n">metrics</span><span class="o">.</span><span class="n">GeneralizedMCC</span><span class="p">()],</span>
+        <span class="p">],</span>
+    <span class="c"># report feature importance scores from Random Forest</span>
+    <span class="n">reporters</span><span class="o">=</span><span class="p">[</span>
+        <span class="p">[</span><span class="n">reporters</span><span class="o">.</span><span class="n">RFImportance</span><span class="p">()],</span>
+        <span class="p">],</span>
+
+    <span class="c"># Try out two algorithms</span>
+    <span class="n">model</span><span class="o">=</span><span class="p">[</span>
+        <span class="n">sklearn</span><span class="o">.</span><span class="n">ensemble</span><span class="o">.</span><span class="n">RandomForestClassifier</span><span class="p">(</span>
+            <span class="n">n_estimators</span><span class="o">=</span><span class="mi">20</span><span class="p">),</span>
+        <span class="n">sklearn</span><span class="o">.</span><span class="n">linear_model</span><span class="o">.</span><span class="n">LogisticRegression</span><span class="p">(),</span>
+        <span class="p">],</span>
+
+    <span class="c"># and 4 feature sets</span>
+    <span class="n">features</span><span class="o">=</span><span class="p">[</span>
+        <span class="n">expanded_features</span><span class="p">,</span>
+
+        <span class="c"># Feature selection</span>
+        <span class="p">[</span><span class="n">trained</span><span class="o">.</span><span class="n">FeatureSelector</span><span class="p">(</span>
+            <span class="n">expanded_features</span><span class="p">,</span>
+            <span class="c"># use random forest's importance to trim</span>
+            <span class="n">selectors</span><span class="o">.</span><span class="n">RandomForestSelector</span><span class="p">(</span><span class="n">classifier</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span>
+            <span class="n">target</span><span class="o">=</span><span class="n">AsFactor</span><span class="p">(</span><span class="s">'class'</span><span class="p">),</span> <span class="c"># target to use</span>
+            <span class="n">n_keep</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="c"># keep top 5 features</span>
+            <span class="p">)],</span>
+
+        <span class="c"># Reduce feature dimension (pointless on this dataset)</span>
+        <span class="p">[</span><span class="n">combo</span><span class="o">.</span><span class="n">DimensionReduction</span><span class="p">(</span><span class="n">expanded_features</span><span class="p">,</span>
+                            <span class="n">decomposer</span><span class="o">=</span><span class="n">decomposition</span><span class="o">.</span><span class="n">PCA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">4</span><span class="p">))],</span>
+
+        <span class="c"># Normalized features</span>
+        <span class="p">[</span><span class="n">Normalize</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">expanded_features</span><span class="p">],</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+
+<h2>
+<a name="status" class="anchor" href="#status"><span class="octicon octicon-link"></span></a>Status</h2>
+
+<p>Ramp is alpha currently, so expect bugs, bug fixes and API changes.</p>
+
+<h2>
+<a name="requirements" class="anchor" href="#requirements"><span class="octicon octicon-link"></span></a>Requirements</h2>
+
+<ul>
+<li>Numpy</li>
+<li>Scipy<br>
+</li>
+<li>Pandas</li>
+<li>PyTables</li>
+<li>Sci-kit Learn</li>
+<li>gensim</li>
+</ul><h2>
+<a name="author" class="anchor" href="#author"><span class="octicon octicon-link"></span></a>Author</h2>
+
+<p>Ken Van Haren. Email with feedback/questions: <a href="mailto:kvh@science.io">kvh@science.io</a> <a href="http://twitter.com/squaredloss">@squaredloss</a></p>
+
+<h2>
+<a name="contributors" class="anchor" href="#contributors"><span class="octicon octicon-link"></span></a>Contributors</h2>
+
+<ul>
+<li><a href="https://github.com/johnmcdonnell">John McDonnell</a></li>
+<li><a href="https://github.com/wrobstory">Rob Story</a></li>
+</ul>
+        </section>
+
+        <aside id="sidebar">
+          <a href="https://github.com/kvh/ramp/zipball/master" class="button">
+            <small>Download</small>
+            .zip file
+          </a>
+          <a href="https://github.com/kvh/ramp/tarball/master" class="button">
+            <small>Download</small>
+            .tar.gz file
+          </a>
+
+          <p class="repo-owner"><a href="https://github.com/kvh/ramp"></a> is maintained by <a href="https://github.com/kvh">kvh</a>.</p>
+
+          <p>This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the Architect theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.</p>
+        </aside>
+      </div>
+    </div>
+
+  
+  </body>
+</html>
