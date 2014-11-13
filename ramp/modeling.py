@@ -67,7 +67,10 @@ def fit_model(model_def, data, prep_index=None, train_index=None):
                                                                       train_index)
 
     # fit estimator
-    model_def.estimator.fit(x_train, y_train)
+    if model_def.weight:
+        model_def.estimator.fit(x_train, y_train, sample_weight=model_def.weight)
+    else:
+        model_def.estimator.fit(x_train, y_train)
 
     fitted_estimator = FittedEstimator(model_def.estimator, x_train, y_train)
 

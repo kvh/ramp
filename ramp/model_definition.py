@@ -46,7 +46,8 @@ class ModelDefinition(object):
                  filters=None,
                  fill_missing=None,
                  discard_incomplete=False,
-                 categorical_indicators=False):
+                 categorical_indicators=False,
+                 weight=None):
         """
         Parameters:
         ___________
@@ -89,7 +90,8 @@ class ModelDefinition(object):
                        filters,
                        fill_missing,
                        discard_incomplete,
-                       categorical_indicators)
+                       categorical_indicators,
+                       weight)
 
 
     def set_attrs(self,
@@ -103,7 +105,8 @@ class ModelDefinition(object):
                   filters=None,
                   fill_missing=None,
                   discard_incomplete=False,
-                  categorical_indicators=False):
+                  categorical_indicators=False,
+                  weight=None):
 
         if prediction is not None:
             if predictions_name is None:
@@ -144,6 +147,8 @@ class ModelDefinition(object):
                                                        fill_value=missing)
         else:
             self.features = None
+
+        self.weight = weight
 
         # Wrap estimator to return probabilities in the case of a classifier
         self.estimator = wrap_sklearn_like_estimator(estimator)

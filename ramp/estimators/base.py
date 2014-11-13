@@ -32,8 +32,11 @@ class Estimator(Wrapper):
         self.estimator = estimator
         super(Estimator, self).__init__(estimator)
 
-    def fit(self, x, y):
-        return self.estimator.fit(x.values, y.values)
+    def fit(self, x, y, sample_weight=None):
+        if sample_weight:
+            return self.estimator.fit(x.values, y.values, sample_weight=sample_weight)
+        else:
+            return self.estimator.fit(x.values, y.values)
     
     def predict_maxprob(self, x):
         """
