@@ -60,15 +60,15 @@ def generate_test(model_def, predict_data, fitted_model, compute_actuals=True):
 generate_test.__test__ = False
 
 
-def fit_model(model_def, data, prep_index=None, train_index=None, sample_weight=None):
+def fit_model(model_def, data, prep_index=None, train_index=None, **fit_args):
     x_train, y_train, fitted_features, fitted_target = generate_train(model_def,
                                                                       data,
                                                                       prep_index,
                                                                       train_index)
 
     # fit estimator
-    if sample_weight:
-        model_def.estimator.fit(x_train, y_train, sample_weight=sample_weight)
+    if fit_args:
+        model_def.estimator.fit(x_train, y_train, **fit_args)
     else:
         model_def.estimator.fit(x_train, y_train)
 
