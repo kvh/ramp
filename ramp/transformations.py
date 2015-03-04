@@ -36,11 +36,13 @@ class PostTransformation(object):
 
 def inject_feature(feature, feature_to_inject, **kwargs):
     feature = copy(feature)
-    if issubclass(type(feature), BaseFeature) and not issubclass(type(feature), ComboFeature):
+    if type(feature) == BaseFeature:
         return feature_to_inject(feature, **kwargs)
+    if not issubclass(type(feature), ComboFeature):
+        return feature
     sub_features = []
     for sub_feature in feature.features:
-        if issubclass(type(sub_feature), BaseFeature) and not issubclass(type(sub_feature), ComboFeature):
+        if type(sub_feature) == BaseFeature:
             sub_features.append(feature_to_inject(sub_feature, **kwargs))
         else:
             sub_features.append(inject_feature(sub_feature, feature_to_inject, **kwargs))

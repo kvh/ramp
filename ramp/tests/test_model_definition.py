@@ -79,17 +79,23 @@ class ModelDefinitionTest(unittest.TestCase):
 
     def test_categorical_indicators(self):
         self.data['categorical'] = map(str, range(10))
-        model_def = ModelDefinition(features=[Map('categorical', list), F('a'), Map('b', np.abs)],
+        model_def = ModelDefinition(features=[Map('categorical', str),
+                                              F('a'), Map('b', np.abs)],
                                     target='y',
                                     categorical_indicators=False)
         x, ff = build_featureset_safe(model_def.features, self.data)
         self.assertEqual(len(x.columns), len(model_def.features))
 
         self.data['categorical'] = map(str, range(10))
-        model_def = ModelDefinition(features=[Map('categorical', np.abs), F('a'), Map('b', np.abs)],
+        model_def = ModelDefinition(features=[Map('categorical', str),
+                                              F('a'), Map('b', np.abs)],
                                     target='y',
                                     categorical_indicators=True)
+        print model_def.features
         x, ff = build_featureset_safe(model_def.features, self.data)
+        print x
+        for f in ff:
+            print f.feature
         self.assertEqual(len(x.columns), len(model_def.features) + 9)
 
 

@@ -528,7 +528,10 @@ class AsFactorIndicators(Feature):
         self.only_if_categorical = only_if_categorical
 
     def _prepare(self, data):
-        data = get_single_column(data)
+        try:
+            data = get_single_column(data)
+        except ValueError:
+            return None
         if self.only_if_categorical and not utils.is_categorical(data):
             return None
         levels = self.levels

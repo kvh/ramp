@@ -7,19 +7,19 @@ __all__ = ['Wrapper', 'Estimator', 'FittedEstimator',
 class Wrapper(object):
     def __init__(self, obj):
         self._obj = obj
-    
+
     def __getattr__(self, attr):
-        
+
         if hasattr(self._obj, attr):
             attr_value = getattr(self._obj,attr)
-            
+
             if isinstance(attr_value, types.MethodType):
                 def callable(*args, **kwargs):
                     return attr_value(*args, **kwargs)
                 return callable
             else:
                 return attr_value
-            
+
         else:
             raise AttributeError
 
@@ -32,15 +32,18 @@ class Estimator(Wrapper):
         self.estimator = estimator
         super(Estimator, self).__init__(estimator)
 
+    def __repr__(self):
+        return repr(self.estimator)
+
     def fit(self, x, y, **kwargs):
         return self.estimator.fit(x.values, y.values, **kwargs)
-    
+
     def predict_maxprob(self, x, **kwargs):
         """
         Most likely value. Generally equivalent to predict.
         """
         return self.estimator.predict(x.values, **kwargs)
-    
+
     def predict(self, x, **kwargs):
         """
         Model output. Not always the same as scikit_learn predict. E.g., in the

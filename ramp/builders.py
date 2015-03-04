@@ -61,7 +61,8 @@ def apply_feature_safe(feature, data, fitted_feature):
 
 
 def apply_featureset_safe(features, data, fitted_features):
-    assert len(features) == len(fitted_features)
+    assert len(features) == len(fitted_features), "%s, %s" % (len(features),
+                                                              len(fitted_features))
     feature_datas = []
     logging.info("Applying %d features to %d data points... " % (len(features), len(data)))
     for f, ff in zip(features, fitted_features):

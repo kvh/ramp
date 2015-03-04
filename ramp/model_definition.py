@@ -33,7 +33,8 @@ class ModelDefinition(object):
     """
     DEFAULT_PREDICTIONS_NAME = '$predictions'
     params = ['target', 'features', 'estimator', 'column_subset'
-              'prediction', 'predictions_name', 'actual']
+              'prediction', 'predictions_name', 'actual',
+              'fill_missing', 'discard_incomplete', 'categorical_indicators',]
 
     def __init__(self,
                  target=None,
@@ -130,6 +131,10 @@ class ModelDefinition(object):
         if discard_incomplete:
             self.filters.append(filter_incomplete)
 
+        self.fill_missing = fill_missing
+        self.categorical_indicators = categorical_indicators
+        self.discard_incomplete = discard_incomplete
+
         if features:
             self.features = ([f if isinstance(f, BaseFeature) else Feature(f)
                               for f in features])
@@ -141,7 +146,7 @@ class ModelDefinition(object):
             if fill_missing is not None:
                 self.features = pre_transform_features(self.features,
                                                        FillMissing,
-                                                       fill_value=missing)
+                                                       fill_value=fill_missing)
         else:
             self.features = None
 
@@ -169,6 +174,18 @@ class ModelDefinition(object):
             ' '.join([str(f) for f in self.features])[:50],
             self.target
         )
+
+    def describe(self):
+        if self.features is not None:
+            feature_count = len(self.features)
+        else:
+            feature_count = 0
+        return {
+            'estimator': self.estimator,
+            'features': "%d [%s ...]" % (feature_count,
+                                         ' '.join([str(f) for f in self.features])[:50]),
+            'target': self.target,
+        }
 
     @property
     def summary(self):

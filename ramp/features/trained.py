@@ -121,13 +121,16 @@ class FeatureSelector(ComboFeature):
 class TargetAggregationByFactor(TrainedFeature):
     """
     """
-    def __init__(self, group_by, func=None, target=None, min_sample=10):
-        # How terrible of a hack is this?
+    def __init__(self, group_by, func=None, target=None,
+                 min_sample=10):
         super(TargetAggregationByFactor, self).__init__()
         self.group_by = group_by
         self.func = func
         self.target = to_feature(target)
         self.min_sample = min_sample
+
+    def __str__(self):
+        return '%s(%s, %s)' % (self.__class__.__name__, self.group_by, self.target)
 
     def _train(self, train_data):
         y, ff = build_target_safe(self.target, train_data)
@@ -148,5 +151,6 @@ class TargetAggregationByFactor(TrainedFeature):
         logging.debug(str(vals.items()[:10]))
         logging.debug(str(keys[:10]))
         logging.debug(str(data.columns))
+        data = data[[self.group_by]]
         data = data.applymap(lambda x: vals.get(x if x in keys else '__other'))
         return data
