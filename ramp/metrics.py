@@ -3,11 +3,11 @@
 Metrics
 -------
 
-Estimator performance assessment metrics, both custom and imported from the 
+Estimator performance assessment metrics, both custom and imported from the
 sklearn library of metrics. Sklearn metric documentation can be found at
 http://scikit-learn.org/stable/modules/model_evaluation.html
 
-Custom metrics/sklearn metrics can be generated/used by subclassing the 
+Custom metrics/sklearn metrics can be generated/used by subclassing the
 Metric/SKLearnMetric classes
 
 '''
@@ -30,58 +30,56 @@ class Metric(object):
     # lower values are better by default, set reverse to true for
     # "bigger is better" metrics
     reverse = False
-    
+
     @property
     def name(self):
         return self.__class__.__name__.lower()
-    
+
     def score(self, result):
         raise NotImplementedError
 
+
 class SKLearnMetric(Metric):
     '''SKLearn library metric'''
-    
+
     metric = None
-    
+
     def __init__(self, metric, **kwargs):
         self.metric = metric
         self.kwargs = kwargs
 
+    @property
+    def name(self):
+        return self.metric.__name__
+
     def score(self, result):
-        return self.metric(result.y_test, result.y_preds, **self.kwargs)
+        return self.metric(result.y_test.values, result.y_preds, **self.kwargs)
+
+
+def as_ramp_metric(metric_like):
+    if isinstance(metric_like, basestring):
+        if metric_like in sklearn_metric_lookup:
+            return SKLearnMetric(sklearn_metric_lookup[metric_like])
+        elif metric_like in metric_lookup:
+            return metric_lookup[metric_like]()
+        else:
+            raise ValueError("Unrecognized metric: %s" % metric_like)
+    if isinstance(metric_like, Metric):
+        return metric_like
+    if hasattr(metric_like, 'score'):
+        return SKLearnMetric(metric_like)
+    return metric_like()
 
 
 # Regression
-class RMSE(Metric):
-    '''Mean Squared Error: The average of the squares of the errors.'''
-    def score(self):
-        return sum((result.y_test - result.y_preds)**2)/float(len(result.y_test))
+def rmse(*args, **kwargs):
+    return np.sqrt(metrics.mean_squared_error(*args, **kwargs))
 
 
 # Classification
-class AUC(SKLearnMetric):
-    '''
-    Area Under the Curve (AUC): area under the reciever operating 
-    characteristic (ROS curve)
-    '''
-    reverse = True
-    metric = staticmethod(auc_scorer)
-
-
-class F1(SKLearnMetric):
-    '''F-measure: Weighted average of the precision and recall'''
-    reverse = True
-    metric = staticmethod(metrics.f1_score)
-
-
-class HingeLoss(SKLearnMetric):
-    '''Hinge Loss (non-regularized): Classifier loss function'''
-    metric = staticmethod(metrics.hinge_loss)
-
-
 class LogLoss(Metric):
     '''
-    Logarithmic Loss: Logarithm of the likelihood function for a Bernoulli 
+    Logarithmic Loss: Logarithm of the likelihood function for a Bernoulli
     random distribution. https://www.kaggle.com/wiki/LogarithmicLoss
     '''
     def score(self, result):
@@ -110,7 +108,7 @@ class GeneralizedMCC(Metric):
                 s2 = sum([c[f,g] for g in range(n) for f in range(n) if f != k])
             s += s1 * s2
         return s
-    
+
     def score(self, result):
         c = metrics.confusion_matrix(result.y_test, result.y_preds)
         n = c.shape[0]
@@ -121,53 +119,109 @@ class GeneralizedMCC(Metric):
         return numer/denom
 
 
+class ThresholdMetric(Metric):
 
-class ArgMetric(Metric):
-    """
-    Implements an evaluate method that takes a Result object and an argument and
-    returns a score.
-    """
-    def __init__(self, arg=None):
-        self.arg = arg
-        super(ArgMetric, self).__init__()
+    def __init__(self, threshold=None):
+        self.threshold = threshold
 
-    def score(self, result, arg=None):
-        raise NotImplementedError
+    def score(self, result, threshold=None):
+        if threshold is None:
+            if self.threshold is None:
+                raise ValueError("Threshold not specified")
+            threshold = self.threshold
+        try:
+            return self.score_with_threshold(result, threshold)
+        except ZeroDivisionError:
+            return None
+
+    def tp(self, result, threshold):
+        return float(result.y_test[result.y_preds >= threshold].sum())
+
+    def tn(self, result, threshold):
+        return float((result.y_preds < threshold).sum()
+                        - result.y_test[result.y_preds < threshold].sum())
+
+    def fp(self, result, threshold):
+        return float((result.y_preds >= threshold).sum()
+                    - result.y_test[result.y_preds >= threshold].sum())
+
+    def fn(self, result, threshold):
+        return float(result.y_test[result.y_preds < threshold].sum())
 
 
-class Recall(ArgMetric):
+class Recall(ThresholdMetric):
     """
     Recall: True positives / (True positives + False negatives)
     """
-    def score(self, result, threshold=None):
-        if threshold is None:
-            threshold = self.arg
-        return result.y_test[result.y_preds >= threshold].sum() / float(result.y_test.sum())
+
+    def score_with_threshold(self, result, threshold):
+        return self.tp(result, threshold) / result.y_test.sum()
 
 
-class WeightedRecall(ArgMetric):
+class WeightedRecall(ThresholdMetric):
+    # TODO: make a general WeightedThresholdMetric
     """
     Recall: Sum of weight column @ true positives  / sum of weight column @ (True positives + False negatives)
     """
-    def __init__(self, arg=None, weight_column=None):
+    def __init__(self, threshold=None, weight_column=None):
         self.weight_column = weight_column
-        super(WeightedRecall, self).__init__(arg)
+        super(WeightedRecall, self).__init__(threshold)
 
-    def score(self, result, threshold=None):
-        if threshold is None:
-            threshold = self.arg
+    def score_with_threshold(self, result, threshold):
         positive_indices = result.y_test[result.y_preds >= threshold].index
         return (result.original_data.loc[positive_indices][self.weight_column].sum() /
                float(result.original_data.loc[result.y_test.index][self.weight_column].sum()))
 
 
-class PositiveRate(ArgMetric):
+class PositiveRate(ThresholdMetric):
     """
     Positive rate: (True positives + False positives) / Total count
     """
-    name = "Positive Rate"
-    
-    def score(self, result, threshold=None):
-        if threshold is None:
-            threshold = self.arg
-        return result.y_test[result.y_preds >= threshold].count() / float(result.y_test.count())
+
+    def score_with_threshold(self, result, threshold):
+        return ((self.tp(result, threshold) + self.fp(result, threshold)) /
+                                 result.y_test.count())
+
+
+class Precision(ThresholdMetric):
+    """
+    Precision: True positives / (True positives + False positives)
+    """
+
+    def score_with_threshold(self, result, threshold):
+        return self.tp(result, threshold) / (self.tp(result, threshold) +
+                                                self.fp(result, threshold))
+
+
+class FalsePositiveRate(ThresholdMetric):
+    """
+    Precision: False positives / (False positives + True negatives)
+    """
+
+    def score_with_threshold(self, result, threshold):
+        return self.fp(result, threshold) / (self.tn(result, threshold) +
+                                                self.fp(result, threshold))
+
+
+sklearn_metric_lookup = {
+    # regression
+    'mse': metrics.mean_squared_error,
+    'rmse': rmse,
+    'r2': metrics.r2_score,
+    'mae': metrics.mean_absolute_error,
+    'explained_variance': metrics.explained_variance_score,
+
+    # classification
+    'mcc': metrics.matthews_corrcoef,
+    'f1': metrics.f1_score,
+    'auc': auc_scorer,
+}
+metric_lookup = {
+    'precision': Precision,
+    'positive_rate': PositiveRate,
+    'percentile': PositiveRate,
+    'recall': Recall,
+    'fpr':FalsePositiveRate,
+    'fall_out':FalsePositiveRate,
+}
+

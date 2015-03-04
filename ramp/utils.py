@@ -85,7 +85,8 @@ def key_from_index(idx):
 
 
 def get_single_column(df):
-    assert len(df.columns) == 1
+    if len(df.columns) != 1:
+        raise ValueError("More than one column")
     return df[df.columns[0]]
 
 
@@ -111,9 +112,12 @@ def stable_repr(obj):
             state)
 
 
-# this could be improved
 def is_categorical(series):
-    return series.dtype.kind not in 'biufc'
+    try:
+        return series.dtype.kind not in 'biufc'
+    except AttributeError:
+        # Only series can be categorical
+        return False
 
 
 stop_words = set([

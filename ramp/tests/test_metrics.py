@@ -49,6 +49,41 @@ class TestMetrics(unittest.TestCase):
         actuals = [m.score(self.result, t) for t in thresholds]
         assert_almost_equal(expected, actuals)
 
+    def test_threshold_metric(self):
+        self.data['y'] = [0]*20 + [1]*80
+        self.data['preds'] = [0]*10 + [.5]*60 + [1]*30
+        self.result.y_test = self.data.y
+        self.result.y_preds = self.data.preds
+        tm = ThresholdMetric()
+        thresholds = [dict(
+            threshold=.1,
+            expected=dict(
+                tp=80,
+                tn=10,
+                fp=10,
+                fn=0
+            )),dict(
+            threshold=0,
+            expected=dict(
+                tp=80,
+                tn=0,
+                fp=20,
+                fn=0
+            )),dict(
+            threshold=1,
+            expected=dict(
+                tp=30,
+                tn=20,
+                fp=0,
+                fn=50
+        ))]
+        for d in thresholds:
+            threshold = d['threshold']
+            expected = d['expected']
+            for k, exp_val in expected.items():
+                val = getattr(tm, k)(self.result, threshold)
+                self.assertEqual(val, exp_val)
+
 
 class TestMetricReporter(unittest.TestCase):
     def setUp(self):
@@ -65,8 +100,8 @@ class TestMetricReporter(unittest.TestCase):
         self.result.y_preds = self.data.preds
 
         r = MetricReporter(Recall(.7))
-        r.update(self.result)
-        summary = r.summary_df()
+        r.process_results([self.result])
+        summary = r.summary_df
         n_thresh = 1
         self.assertEqual(len(summary), n_thresh)
 
@@ -79,8 +114,8 @@ class TestMetricReporter(unittest.TestCase):
         self.result.y_preds = self.data.preds
 
         r = DualThresholdMetricReporter(Recall(), PositiveRate())
-        r.update(self.result)
-        summary = r.summary_df()
+        r.process_results([self.result])
+        summary = r.summary_df
         n_thresh = 3
         self.assertEqual(len(summary), n_thresh)
 

@@ -22,20 +22,25 @@ class TestShortcuts(unittest.TestCase):
         self.data = make_data(10)
 
     def test_cross_validate(self):
-        results, reporters = cross_validate(self.data, folds=3, 
+        folds = 3
+        estimator = linear_model.LinearRegression()
+        cvresult = cross_validate(self.data, folds=folds,
                                           features = [F(10), F('a')],
                                           target = F('b'),
-                                          estimator = linear_model.LinearRegression())
-        self.assertEqual(len(results), 3)
+                                          estimator = estimator)
+        self.assertEqual(len(cvresult.results), folds)
+        self.assertEqual(cvresult.model_def.estimator.estimator, estimator)
 
     def test_cross_validate_factory(self):
-        outcomes = cv_factory(self.data, 
-                              folds=3, 
+        folds = 3
+        n_models = 2
+        cvcresult = cv_factory(self.data,
+                              folds=folds,
                               features=[[F(10), F('a')]],
                               target=[F('b'), F('a')],
                               estimator=[linear_model.LinearRegression()])
-        for i in outcomes:
-            self.assertEqual(len(outcomes[i]['results']), 3)
+        self.assertEqual(len(cvcresult.cvresults), n_models)
+
 
 if __name__ == '__main__':
     unittest.main()

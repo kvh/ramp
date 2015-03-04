@@ -94,7 +94,7 @@ def fit_and_predict(model_def, data, prep_index=None, train_index=None):
     return predict_with_model(model_def, data, fitted_model)
 
 
-def cross_validate(model_def, data, folds, reporters=[], repeat=1):
+def cross_validate(model_def, data, folds, repeat=1):
     """
     """
     results = []
@@ -117,9 +117,9 @@ def cross_validate(model_def, data, folds, reporters=[], repeat=1):
             result = Result(x_train, x_test, y_train, y_test, y_preds, model_def, fitted_model, data)
             results.append(result)
 
-            for reporter in reporters:
-                reporter.update(result)
-    return results, reporters
+            # for reporter in reporters:
+            #     reporter.update(result)
+    return results
 
 
 def build_and_package_model(model_def, data, data_description=None, evaluate=False,
