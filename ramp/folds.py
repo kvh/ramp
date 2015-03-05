@@ -92,6 +92,8 @@ class BinaryTargetFolds(object):
         self.y = y
         self.negatives = y[~y.astype('bool')].index
         self.positives = y[y.astype('bool')].index
+        self.n_positives = len(self.positives)
+        self.n_negatives = len(self.negatives)
 
     def randomize(self):
         if self.seed is not None:
@@ -132,29 +134,91 @@ class BalancedFolds(BinaryTargetFolds):
 
 
 class BootstrapFolds(BalancedFolds):
-    def __init__(self, num_folds, target, data, seed=None,
-                  pos_train=None, pos_test=None, neg_train=None, neg_test=None):
+    def __init__(self, num_folds, target, data,
+                  pos_train=None, pos_test=None, neg_train=None, neg_test=None,
+                  train_pos_percent=None, test_pos_percent=None, train_percent=None,
+                  seed=None):
         super(BootstrapFolds, self).__init__(num_folds, target, data, seed)
         if (any([pos_train, pos_test, neg_train, neg_test])
                 and not all([pos_train, pos_test, neg_train, neg_test])):
             raise ValueError("Please specify all four sizes, or none at all")
+        if (any([train_pos_percent, test_pos_percent, train_percent])
+                and not all([train_pos_percent, test_pos_percent, train_percent])):
+            raise ValueError("Please specify both percentages, or none at all")
+        if (train_pos_percent is None) == (pos_test is None):
+            raise ValueError("Please specify either sizes or percentages, not both")
         self.pos_train = pos_train
         self.neg_train = neg_train
         self.pos_test = pos_test
         self.neg_test = neg_test
+        self.train_pos_percent = train_pos_percent
+        self.test_pos_percent = test_pos_percent
+        self.train_percent = train_percent
+        self.using_percents = False
+        if self.test_pos_percent is not None:
+            self.using_percents = True
+
+    def from_sizes(self):
+        train_neg = pd.Index(np.random.choice(self.negatives, self.neg_train, replace=True))
+        test_neg = pd.Index(np.random.choice(self.negatives - train_neg, self.neg_test, replace=True))
+        train_pos = pd.Index(np.random.choice(self.positives, self.pos_train, replace=True))
+        test_pos = pd.Index(np.random.choice(self.positives - train_pos, self.pos_test, replace=True))
+        return train_neg, test_neg, train_pos, test_pos
+
+    def from_percents(self):
+        # Assumes positive is constrained (rarer) class
+        rp = self.train_percent * self.n_positives
+        tp = (1 - self.train_percent) * self.n_positives
+        rn = rp / self.train_pos_percent - rp
+        tn = tp / self.test_pos_percent - tp
+        train_neg = pd.Index(np.random.choice(self.negatives,
+                                              int(rn),
+                                              replace=True))
+        test_neg = pd.Index(np.random.choice(self.negatives - train_neg,
+                                             int(tn),
+                                             replace=True))
+        train_pos = pd.Index(np.random.choice(self.positives,
+                                              int(rp),
+                                              replace=True))
+        test_pos = pd.Index(np.random.choice(self.positives - train_pos,
+                                             int(tp),
+                                             replace=True))
+        return train_neg, test_neg, train_pos, test_pos
 
     def compute_folds(self):
         if self.seed is not None:
             np.random.seed(self.seed)
         folds = []
         for i in range(self.num_folds):
-            train_neg = pd.Index(np.random.choice(self.negatives, self.neg_train, replace=True))
-            test_neg = pd.Index(np.random.choice(self.negatives - train_neg, self.neg_test, replace=True))
-            train_pos = pd.Index(np.random.choice(self.positives, self.pos_train, replace=True))
-            test_pos = pd.Index(np.random.choice(self.positives - train_pos, self.pos_test, replace=True))
+            if self.using_percents:
+                train_neg, test_neg, train_pos, test_pos = self.from_percents()
+            else:
+                train_neg, test_neg, train_pos, test_pos = self.from_sizes()
             fold = (train_neg.append(train_pos), test_neg.append(test_pos))
             folds.append(fold)
         self.folds = folds
 
+
+class BootstrapFoldsByPercentPositive(BootstrapFolds):
+
+    def __init__(self, num_folds, target, data,
+                 train_pos_percent, test_pos_percent, train_percent,
+                 seed=None):
+        super(BootstrapFoldsByPercentPositive,
+              self).__init__(num_folds, target, data, seed=seed,
+                             train_pos_percent=train_pos_percent,
+                             test_pos_percent=test_pos_percent,
+                             train_percent=train_percent)
+
+class BootstrapFoldsBySize(BootstrapFolds):
+
+    def __init__(self, num_folds, target, data,
+                 pos_train=None, pos_test=None, neg_train=None, neg_test=None,
+                 seed=None):
+        super(BootstrapFoldsBySize, self).__init__(num_folds, target, data, seed=seed,
+                                                   pos_train=pos_train,
+                                                   pos_test=pos_test,
+                                                   neg_train=neg_train,
+                                                   neg_test=neg_test)
 
 make_default_folds = BasicFolds
