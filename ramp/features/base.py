@@ -7,9 +7,7 @@ The Base Features module provides a set of abstract base classes and simple
 feature definitions (such as Length, Log, Power, etc). The ABC's can be built
 upon, such as in the text or combo modules.
 
-These Feature classes allow for chaining and combining feature sets to be
-iterated upon in the Configurator Factory.
-
+These Feature classes allow for chaining and combining features.
 '''
 from hashlib import md5
 import math

@@ -1,9 +1,10 @@
 from hashlib import md5
-import numpy as np
-import pandas as pd
+import math
 import random
 import re
 
+import numpy as np
+import pandas as pd
 
 
 def _pprint(params):
@@ -42,31 +43,6 @@ def shuffle_df(df):
         df: pandas.DataFrame
     """
     return df.reindex(np.random.permutation(df.index))
-
-def make_folds(index, nfolds=5, repeat=1, shuffle=True):
-    n = len(index)
-    indices = range(n)
-    foldsize = n / nfolds
-    folds = []
-    for i in range(repeat):
-        if nfolds == 1:
-            folds.append((index, index))
-            continue
-        if shuffle:
-            random.shuffle(indices)
-        for i in range(nfolds):
-            test = index[indices[i*foldsize:(i + 1)*foldsize]]
-            train = index - test
-            assert not (train & test)
-            folds.append((train, test))
-    return folds
-
-
-def make_subset_prediction_folds(index, sub_pred_index, nfolds=5, repeat=1):
-    folds = []
-    for train, test in make_folds(index, nfolds, repeat):
-        folds.append((train, test & sub_pred_index))
-    return folds
 
 
 def get_np_hash(obj):
@@ -120,19 +96,21 @@ def is_categorical(series):
         return False
 
 
+### Text utils
+
 stop_words = set([
-    'http',
-    'https',
-    'com',
-    'www',
-    'org',
-    'web',
-    'url',
-    'the',
-    'a',
-    'and',
-    'of',
-    'it',
+'http',
+'https',
+'com',
+'www',
+'org',
+'web',
+'url',
+'the',
+'a',
+'and',
+'of',
+'it',
 'i'      ,
 'a',
 'about' ,
@@ -167,7 +145,8 @@ stop_words = set([
 'www'
     ])
 
-contractions = {"aren't":"are not",
+contractions = {
+"aren't":"are not",
 "can't":"cannot",
 "couldn't":"could not",
 "didn't":"did not",
@@ -222,7 +201,6 @@ contractions = {"aren't":"are not",
 "you've":"you have",
 }
 
-import math
 def cosine(vec1, vec2):
     sim = 0
     v2 = dict(vec2)

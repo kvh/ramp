@@ -8,32 +8,6 @@ from copy import copy
 from ramp.features.base import BaseFeature, ComboFeature
 
 
-class PreTransformation(object):
-
-    def __init__(self, feature, feature_kwargs):
-        self.feature = feature
-        self.kwargs = feature_kwargs
-
-    def transform(self, features):
-        transformed_features = []
-        for feature in features:
-            transformed_features.append(inject_feature(feature, self.feature, **self.kwargs))
-        return transformed_features
-
-
-class PostTransformation(object):
-
-    def __init__(self, feature, feature_kwargs, combo=False):
-        self.feature = feature
-        self.kwargs = feature_kwargs
-
-    def transform(self, features):
-        if self.combo:
-            return [self.feature(features, **self.kwargs)]
-        else:
-            return [self.feature(f, **self.kwargs) for f in features]
-
-
 def inject_feature(feature, feature_to_inject, **kwargs):
     feature = copy(feature)
     if type(feature) == BaseFeature:

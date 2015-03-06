@@ -95,28 +95,29 @@ class MCC(SKLearnMetric):
     metric = staticmethod(metrics.matthews_corrcoef)
 
 
-class GeneralizedMCC(Metric):
-    """ Matthew's Correlation Coefficient generalized to multi-class case """
-    def cov(self, c, n, flip=False):
-        s = 0
-        for k in range(n):
-            if flip:
-                s1 = sum([c[l,k] for l in range(n)])
-                s2 = sum([c[g,f] for g in range(n) for f in range(n) if f != k])
-            else:
-                s1 = sum([c[k,l] for l in range(n)])
-                s2 = sum([c[f,g] for g in range(n) for f in range(n) if f != k])
-            s += s1 * s2
-        return s
+# TODO: This needs work, not numerically stable
+# class GeneralizedMCC(Metric):
+#     """ Matthew's Correlation Coefficient generalized to multi-class case """
+#     def cov(self, c, n, flip=False):
+#         s = 0
+#         for k in range(n):
+#             if flip:
+#                 s1 = sum([c[l,k] for l in range(n)])
+#                 s2 = sum([c[g,f] for g in range(n) for f in range(n) if f != k])
+#             else:
+#                 s1 = sum([c[k,l] for l in range(n)])
+#                 s2 = sum([c[f,g] for g in range(n) for f in range(n) if f != k])
+#             s += s1 * s2
+#         return s
 
-    def score(self, result):
-        c = metrics.confusion_matrix(result.y_test, result.y_preds)
-        n = c.shape[0]
-        numer = sum([c[k,k] * c[m,l] - c[l,k] * c[k,m] for k in range(n) for l in range(n) for m in range(n)])
-        denom = math.sqrt(self.cov(c, n)) * math.sqrt(self.cov(c, n, flip=True))
-        if abs(denom) < .00000001:
-            return numer
-        return numer/denom
+#     def score(self, result):
+#         c = metrics.confusion_matrix(result.y_test, result.y_preds)
+#         n = c.shape[0]
+#         numer = sum([c[k,k] * c[m,l] - c[l,k] * c[k,m] for k in range(n) for l in range(n) for m in range(n)])
+#         denom = math.sqrt(self.cov(c, n)) * math.sqrt(self.cov(c, n, flip=True))
+#         if abs(denom) < .00000001:
+#             return numer
+#         return numer/denom
 
 
 class ThresholdMetric(Metric):

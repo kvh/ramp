@@ -4,7 +4,7 @@ from pandas import Series, DataFrame, concat
 from ramp.builders import build_target_safe
 from ramp.features.base import to_feature, ComboFeature, Feature, AllDataFeature
 from ramp.modeling import fit_model, generate_test
-from ramp.utils import make_folds, get_single_column, reindex_safe
+from ramp.utils import get_single_column, reindex_safe
 
 
 class TrainedFeature(Feature):

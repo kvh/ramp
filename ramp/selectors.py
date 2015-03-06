@@ -1,5 +1,5 @@
 import logging
-from utils import make_folds, _pprint
+from utils import _pprint
 from pandas import Series, concat
 from scipy.stats import norm
 import random

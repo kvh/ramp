@@ -3,7 +3,7 @@ from pandas import DataFrame, Series, concat
 
 
 class ComboMap(ComboFeature):
-    """ abstract base for binary operations on features """
+    """Abstract base for binary operations on features """
     def __init__(self, features, name=None, fillna=0):
         super(ComboMap, self).__init__(features)
         self.fillna = fillna

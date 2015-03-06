@@ -258,12 +258,18 @@ class TestTrainedFeature(unittest.TestCase):
     def test_target_aggregation_by_factor(self):
         self.data['grp'] = [0] * 5 + [1] * (len(self.data) - 5)
         f = TargetAggregationByFactor(group_by='grp', func=np.mean, target='ints', min_sample=1)
+
+        # Test build
         d, ff = f.build(self.data, train_index=self.data.index[:6])
         keys, vals = ff.trained_data
         self.assertEqual(len(keys), 2)
         self.assertAlmostEqual(vals[0], np.mean(range(5)))
         self.assertAlmostEqual(vals[1], np.mean(5))
 
+        # Test apply
+        res = f.apply(self.data, ff)
+        d['expected'] = [vals[0]] * 5 + [vals[1]] * (len(self.data) - 5)
+        assert_almost_equal(get_single_column(res).values, d.expected.values)
 
 
 def make_text_data(n):
@@ -334,6 +340,13 @@ class TestComboFeatures(unittest.TestCase):
         decomposer = decomposition.PCA(n_components=2)
         expected = decomposer.fit_transform(self.data[['a', 'b', 'c']])
         assert_almost_equal(expected, data.values)
+
+    def test_interactions(self):
+        f = combo.Interactions(['a', 'b', 'c'])
+        data, ff = build_feature_safe(f, self.data)
+        self.assertEqual(len(data.columns), 3)
+        self.assertAlmostEqual(data[data.columns[0]].iloc[0],
+                               self.data['a'].iloc[0] * self.data['b'].iloc[0])
 
 
 if __name__ == '__main__':
