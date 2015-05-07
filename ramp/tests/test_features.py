@@ -257,12 +257,12 @@ class TestTrainedFeature(unittest.TestCase):
 
     def test_target_aggregation_by_factor(self):
         self.data['grp'] = [0] * 5 + [1] * (len(self.data) - 5)
-        f = TargetAggregationByFactor(group_by='grp', func=np.mean, target='ints', min_sample=1)
+        f = TargetAggregationByFactor(group_by='grp', func=np.mean,
+                                      target='ints', min_sample=1, regularize=False)
 
         # Test build
         d, ff = f.build(self.data, train_index=self.data.index[:6])
-        keys, vals = ff.trained_data
-        self.assertEqual(len(keys), 2)
+        vals = ff.trained_data
         self.assertAlmostEqual(vals[0], np.mean(range(5)))
         self.assertAlmostEqual(vals[1], np.mean(5))
 

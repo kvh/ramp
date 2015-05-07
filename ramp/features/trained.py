@@ -122,35 +122,44 @@ class TargetAggregationByFactor(TrainedFeature):
     """
     """
     def __init__(self, group_by, func=None, target=None,
-                 min_sample=10):
+                 min_sample=10, regularize=True):
         super(TargetAggregationByFactor, self).__init__()
         self.group_by = group_by
         self.func = func
         self.target = to_feature(target)
         self.min_sample = min_sample
+        self.regularize = regularize
 
     def __str__(self):
         return '%s(%s, %s)' % (self.__class__.__name__, self.group_by, self.target)
 
     def _train(self, train_data):
         y, ff = build_target_safe(self.target, train_data)
-        vc = train_data[self.group_by].value_counts()
-        keys = [k for k, v in vc.iterkv() if v >= self.min_sample]
-        train_data['__grouping'] = train_data[self.group_by].map(lambda x: x if x in keys else '__other')
         train_data['__target'] = y
-        vals = train_data.groupby('__grouping').agg({'__target': self.func})['__target'].to_dict()
+        global_value = self.func(y)
+        if self.regularize:
+            keys = train_data[self.group_by].unique()
+            f = lambda x: (self.func(x) * x.size + global_value * self.min_sample) / (x.size + self.min_sample)
+            vals = train_data.groupby(self.group_by).agg({'__target': f})['__target'].to_dict()
+        else:
+            vc = train_data[self.group_by].value_counts()
+            keys = [k for k, v in vc.iterkv() if v >= self.min_sample]
+            train_data['__grouping'] = train_data[self.group_by].map(lambda x: x if x in keys else '__other')
+            vals = train_data.groupby('__grouping').agg({'__target': self.func})['__target'].to_dict()
+            del train_data['__grouping']
+        if '__other' not in vals:
+            vals['__other'] = global_value
         logging.debug("Preparing Target Aggregations:")
         logging.debug(str(vals.items()[:10]))
         del train_data['__target']
-        del train_data['__grouping']
-        return (keys, vals)
+        return vals
 
     def _apply(self, data, fitted_feature):
-        keys, vals = fitted_feature.trained_data
+        vals = fitted_feature.trained_data
         logging.debug("Loading Target aggs")
         logging.debug(str(vals.items()[:10]))
-        logging.debug(str(keys[:10]))
+        # logging.debug(str(keys))
         logging.debug(str(data.columns))
         data = data[[self.group_by]]
-        data = data.applymap(lambda x: vals.get(x if x in keys else '__other'))
+        data = data.applymap(lambda x: vals.get(x, vals['__other']))
         return data
