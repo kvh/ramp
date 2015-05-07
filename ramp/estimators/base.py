@@ -1,6 +1,6 @@
 import types
 
-__all__ = ['Wrapper', 'Estimator', 'FittedEstimator',
+__all__ = ['Wrapper', 'Estimator',
            'Probabilities', 'BinaryProbabilities', 'wrap_sklearn_like_estimator']
 
 
@@ -29,27 +29,27 @@ class Wrapper(object):
 
 class Estimator(Wrapper):
     def __init__(self, estimator):
-        self.estimator = estimator
+        self.base_estimator_ = estimator
         super(Estimator, self).__init__(estimator)
 
     def __repr__(self):
-        return repr(self.estimator)
+        return repr(self.base_estimator_)
 
     def fit(self, x, y, **kwargs):
-        return self.estimator.fit(x.values, y.values, **kwargs)
+        return self.base_estimator_.fit(x.values, y.values, **kwargs)
 
     def predict_maxprob(self, x, **kwargs):
         """
         Most likely value. Generally equivalent to predict.
         """
-        return self.estimator.predict(x.values, **kwargs)
+        return self.base_estimator_.predict(x.values, **kwargs)
 
     def predict(self, x, **kwargs):
         """
         Model output. Not always the same as scikit_learn predict. E.g., in the
         case of logistic regression, returns the probability of each outome.
         """
-        return self.estimator.predict(x.values, **kwargs)
+        return self.base_estimator_.predict(x.values, **kwargs)
 
 
 class Probabilities(Estimator):
@@ -63,15 +63,14 @@ class Probabilities(Estimator):
             for the positive class. If False, returns probabilities for
             all classes.
         """
-        self.estimator = estimator
         self.binary = binary
         super(Probabilities, self).__init__(estimator)
 
     def __str__(self):
-        return u"Probabilites for %s" % self.estimator
+        return u"Probabilites for %s" % self.base_estimator_
 
     def predict(self, x):
-        probs = self.estimator.predict_proba(x)
+        probs = self.base_estimator_.predict_proba(x)
         if probs.shape[1] == 2 or self.binary:
             return probs[:,1]
         return probs
@@ -80,13 +79,6 @@ class Probabilities(Estimator):
 class BinaryProbabilities(Probabilities):
     def __init__(self, estimator):
         super(BinaryProbabilities, self).__init__(estimator, binary=True)
-
-
-class FittedEstimator(Wrapper):
-    def __init__(self, fitted_estimator, x_train, y_train):
-        # compute metadata
-        self.fitted_estimator = fitted_estimator
-        super(FittedEstimator, self).__init__(fitted_estimator)
 
 
 def wrap_sklearn_like_estimator(estimator):

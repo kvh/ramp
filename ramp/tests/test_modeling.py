@@ -16,7 +16,8 @@ from ramp import modeling
 from ramp.modeling import (fit_model,
                            cross_validate,
                            build_and_package_model,
-                           generate_train)
+                           generate_train,
+                           generate_test)
 from ramp.tests.test_features import make_data
 
 
@@ -75,6 +76,21 @@ class TestBasicModeling(unittest.TestCase):
                                     target=target)
         return model_def
 
+    def test_generate_train(self):
+        model_def = self.make_model_def_basic()
+        train_index = self.data.index[:5]
+        x_train, y_train, ff, x = generate_train(model_def, self.data,
+                                          train_index=train_index)
+        assert_almost_equal(x_train.index, train_index)
+
+    def test_generate_test(self):
+        model_def = self.make_model_def_basic()
+        x, y, fitted_model = fit_model(model_def, self.data)
+        test_index = self.data.index[:5]
+        x_test, y_test = generate_test(model_def, self.data.loc[test_index],
+                                       fitted_model)
+        assert_almost_equal(x_test.index, test_index)
+
     def test_fit_model(self):
         model_def = self.make_model_def_basic()
         x, y, fitted_model = fit_model(model_def, self.data)
@@ -112,6 +128,24 @@ class TestBasicModeling(unittest.TestCase):
         self.assertEqual(pkg.data_description, desc)
         self.assertTrue(pkg.fitted_model)
 
+    def test_cross_validate_with_alternative_predictions(self):
+        features = [F(10), F('a')]
+        target = Map('b', np.log)
+        estimator = DummyEstimator()
+
+        model_def = ModelDefinition(features=features,
+                                    estimator=estimator,
+                                    target=target,
+                                    evaluation_transformation=Map('__predictions', np.exp),
+                                    evaluation_target=F('b'))
+        results = cross_validate(model_def, self.data, folds=3)
+        self.assertEqual(len(results), 3)
+        # assert we've transformed predictions correctly
+        yt = results[0].y_test
+        assert_almost_equal(yt.values, self.data['b'].reindex(yt.index).values)
+        assert_almost_equal(estimator.fity,
+                            np.log(self.data['b'].reindex(results[-1].y_train.index)).values)
+
 
 class TestNestedModeling(unittest.TestCase):
     def setUp(self):
@@ -130,9 +164,10 @@ class TestNestedModeling(unittest.TestCase):
                                     estimator=estimator,
                                     target=target)
 
-        x, y, fitted_model = fit_model(model_def, self.data, train_index=self.data.index[:5])
+        train_index = self.data.index[:5]
+        x, y, fitted_model = fit_model(model_def, self.data, train_index=train_index)
         self.assertEqual(fitted_model.fitted_features[1].trained_data.fitted_estimator.fitx.shape, (5, 1))
-        self.assertEqual(x.shape, (len(self.data), 2))
+        self.assertEqual(x.shape, (len(train_index), 2))
 
         x, y_true = modeling.generate_test(model_def, self.data[:3], fitted_model)
         assert_almost_equal(x[x.columns[1]].values, np.zeros(3))

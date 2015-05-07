@@ -106,7 +106,7 @@ class RFFeatureImportances(Reporter):
                                         for f in results[0].fitted_model.fitted_features]})
         avg_importances = []
         for i in range(len(importances)):
-            avg = np.mean([res.fitted_model.fitted_estimator.estimator.feature_importances_[i]
+            avg = np.mean([res.fitted_model.fitted_estimator.feature_importances_[i]
                           for res in results])
             avg_importances.append(avg)
         importances['Average importance'] = avg_importances

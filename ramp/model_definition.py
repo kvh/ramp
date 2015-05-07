@@ -31,18 +31,18 @@ class ModelDefinition(object):
     including features, estimator and target metric.
     Can be stored (pickled) and retrieved.
     """
-    DEFAULT_PREDICTIONS_NAME = '$predictions'
-    params = ['target', 'features', 'estimator', 'column_subset'
-              'prediction', 'predictions_name', 'actual',
+    DEFAULT_PREDICTIONS_NAME = '__predictions'
+    params = ['target', 'features', 'estimator', 'column_subset',
+              'evaluation_transformation', 'predictions_name', 'evaluation_target',
               'fill_missing', 'discard_incomplete', 'categorical_indicators',]
 
     def __init__(self,
                  target=None,
                  features=None,
                  estimator=None,
-                 prediction=None,
+                 evaluation_transformation=None,
                  predictions_name=None,
-                 actual=None,
+                 evaluation_target=None,
                  column_subset=None,
                  filters=None,
                  fill_missing=None,
@@ -68,24 +68,25 @@ class ModelDefinition(object):
 
         predictions_name: string, default None
             A unique string used as a column identifier for model predictions.
-            Must be unique among all feature names: eg '$logreg_predictions$'
+            Must be unique among all feature names. Defaults to
+            '__predictions'
 
-        prediction: `Feature`, default None
+        evaluation_transformation: `Feature`, default None
             A `Feature` transformation of the special `predictions_name`
             column used to post-process predictions prior to metric scoring.
 
-        actual: `Feature`, default None
+        evaluation_target: `Feature`, default None
             `Feature`. Used if `target` represents a transformation that is
             NOT the actual target "y" values. Used in conjuction with
-            `prediction` to allow model training, predictions and scoring to
+            `evaluation_transformation` to allow model training, predictions and scoring to
             operate on different values.
         """
         self.set_attrs(target,
                        features,
                        estimator,
-                       prediction,
+                       evaluation_transformation,
                        predictions_name,
-                       actual,
+                       evaluation_target,
                        column_subset,
                        filters,
                        fill_missing,
@@ -97,36 +98,40 @@ class ModelDefinition(object):
                   target=None,
                   features=None,
                   estimator=None,
-                  prediction=None,
+                  evaluation_transformation=None,
                   predictions_name=None,
-                  actual=None,
+                  evaluation_target=None,
                   column_subset=None,
                   filters=None,
                   fill_missing=None,
                   discard_incomplete=False,
                   categorical_indicators=False):
 
-        if prediction is not None:
-            if predictions_name is None:
-                raise ValueError("If you provide a prediction feature, you "
-                "must also specify a _unique_ 'predictions_name'")
-
         if isinstance(target, BaseFeature) or target is None:
             self.target = target
         else:
             self.target = Feature(target)
 
-        if isinstance(prediction, BaseFeature) or prediction is None:
-            self.prediction = prediction
+        # Alternative predictions
+        if isinstance(evaluation_transformation, BaseFeature) or evaluation_transformation is None:
+            self.evaluation_transformation = evaluation_transformation
         else:
-            self.prediction = Feature(prediction)
+            self.evaluation_transformation = Feature(evaluation_transformation)
+
         self.predictions_name = predictions_name
+        if self.predictions_name is None:
+            self.predictions_name = self.DEFAULT_PREDICTIONS_NAME
 
-        if actual is None:
-            actual = self.target
-        self.actual = (actual if isinstance(actual, BaseFeature)
-                       else Feature(actual))
+        if evaluation_target is not None:
+            evaluation_target = (evaluation_target if isinstance(evaluation_target, BaseFeature)
+                       else Feature(evaluation_target))
+        self.evaluation_target = evaluation_target
 
+        if (self.evaluation_target is not None) ^ (self.evaluation_transformation is not None):
+            raise ValueError("You must specify both or neither of\
+                             evaluation_target and evaluation_transformation")
+
+        # Transformations
         self.filters = filters if filters else []
         if discard_incomplete:
             self.filters.append(filter_incomplete)
@@ -135,6 +140,7 @@ class ModelDefinition(object):
         self.categorical_indicators = categorical_indicators
         self.discard_incomplete = discard_incomplete
 
+        # Features
         if features:
             self.features = ([f if isinstance(f, BaseFeature) else Feature(f)
                               for f in features])
@@ -208,7 +214,7 @@ class ModelDefinition(object):
         self.set_attrs(**d)
 
 
-def model_definition_factory(model_definition, **kwargs):
+def model_definition_factory(base_model_definition, **kwargs):
     """
     Provides an iterator over passed-in
     configuration values, allowing for easy
@@ -217,7 +223,7 @@ def model_definition_factory(model_definition, **kwargs):
     Parameters:
     ___________
 
-    base_config:
+    base_model_definition:
         The base `ModelDefinition` to augment
 
     kwargs:
@@ -228,11 +234,11 @@ def model_definition_factory(model_definition, **kwargs):
         yield config
     else:
         for param in kwargs:
-            if not hasattr(model_definition, param):
+            if not hasattr(base_model_definition, param):
                 raise ValueError("'%s' is not a valid configuration parameter" % param)
 
         for raw_params in itertools.product(*kwargs.values()):
-            new_definition = copy.copy(model_definition)
+            new_definition = copy.copy(base_model_definition)
             new_definition.update(dict(zip(kwargs.keys(), raw_params)))
             yield new_definition
 

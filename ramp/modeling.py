@@ -6,7 +6,6 @@ from ramp.builders import (build_featureset_safe,
                            apply_target_safe,
                            filter_data_and_indexes,
                            filter_data)
-from ramp.estimators.base import FittedEstimator
 from ramp.folds import make_default_folds
 from ramp.result import Result
 from ramp.store import Storable
@@ -46,6 +45,8 @@ def generate_train(model_def, data, prep_index=None, train_index=None):
     data, prep_index, train_index = filter_data_and_indexes(model_def, data, prep_index, train_index)
     x_train, fitted_features = build_featureset_safe(model_def.features, data, prep_index, train_index)
     y_train, fitted_target = build_target_safe(model_def.target, data, prep_index, train_index)
+    x_train = x_train.reindex(train_index)
+    y_train = y_train.reindex(train_index)
     return x_train, y_train, fitted_features, fitted_target
 
 
@@ -86,11 +87,21 @@ def build_fitted_model(*args, **kwargs):
     return fitted_model
 
 
+def predict(fitted_model, x_data):
+    model_def = fitted_model.model_def
+    predictions = fitted_model.fitted_estimator.predict(x_data)
+    predictions = pd.Series(predictions, index=x_data.index)
+    if model_def.evaluation_transformation is not None:
+        x_data[model_def.predictions_name] = predictions
+        predictions, ff = build_target_safe(model_def.evaluation_transformation, x_data)
+        del x_data[model_def.predictions_name]
+    return predictions
+
+
 def predict_with_model(fitted_model, data, compute_actuals=False):
     model_def = fitted_model.model_def
     x_test, y_test = generate_test(model_def, data, fitted_model, compute_actuals)
-    y_preds = fitted_model.fitted_estimator.predict(x_test)
-    return pd.Series(y_preds, index=x_test.index)
+    return predict(fitted_model, x_test)
 
 
 def fit_and_predict(model_def, data, prep_index=None, train_index=None):
@@ -119,8 +130,10 @@ def cross_validate(model_def, data, folds, repeat=1):
             x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
             test_data = data.loc[test_index]
             x_test, y_test = generate_test(model_def, test_data, fitted_model)
-            y_preds = fitted_model.fitted_estimator.predict(x_test)
-            y_preds = pd.Series(y_preds, index=x_test.index)
+            assert len(x_train.index & x_test.index) == 0, "train and test overlap!!! %s" % (x_train.index & x_test.index)
+            y_preds = predict(fitted_model, x_test)
+            if model_def.evaluation_target is not None:
+                y_test, ff = build_target_safe(model_def.evaluation_target, test_data)
             result = Result(x_train, x_test, y_train, y_test, y_preds, model_def, fitted_model, data)
             results.append(result)
 
@@ -132,7 +145,7 @@ def cross_validate(model_def, data, folds, repeat=1):
 def build_and_package_model(model_def, data, data_description=None, evaluate=False,
                             reporters=None, prep_index=None, train_index=None):
     x_train, y_train, fitted_model = fit_model(model_def, data, prep_index, train_index)
-    y_preds = fitted_model.fitted_estimator.predict(x_train)
+    y_preds = predict(fitted_model, x_train)
     result = None
     if evaluate:
         # only evaluate on train (this seems reasonable)
