@@ -11,22 +11,32 @@ existing python machine learning and statistics libraries (scikit-learn, rpy2, e
 Features
 ^^^^^^^^
 
-* Fast caching and persistence of all intermediate and final calculations -- nothing is recomputed unnecessarily.
-* Advanced training and preparation logic. Ramp respects the current training set, even when using complex trained features and blended predictions, and also tracks the given preparation set (the x values used in feature preparation -- e.g. the mean and stdev used for feature normalization.)
-* A growing library of feature transformations, metrics and estimators. Ramp's simple API allows for easy extension.
+* Easy and methodical model comparison and evaluation
+* Clean components for features, models, and results
+* Comprehensive suite of tools for measuring, validating, and building, blending, and composing models.
+* Easily extensible API
 
 Contents:
 
 .. toctree::
    :maxdepth: 2
 
-   intro
-   Data contexts <context>
-   configurations
-   features
-   stores
-   estimators
-   reporters
+    Overview
+    Tasks
+        Classification
+        Regression
+        Timeseries
+        Clustering
+        Sequence labeling
+    Model comparison and evaluation
+    Cross-validation (fold generation)
+    Metrics, reports, and plots
+    Features
+    Model blending and composition
+    Productionizing
+    [Feature selection]
+    API
+
 
 
 Indices and tables
