@@ -1,6 +1,9 @@
 import types
 
-__all__ = ['Wrapper', 'Estimator',
+import numpy as np
+
+
+__all__ = ['Wrapper', 'Estimator', 'ConstantClassifier', 'ConstantRegressor',
            'Probabilities', 'BinaryProbabilities', 'wrap_sklearn_like_estimator']
 
 
@@ -79,6 +82,38 @@ class Probabilities(Estimator):
 class BinaryProbabilities(Probabilities):
     def __init__(self, estimator):
         super(BinaryProbabilities, self).__init__(estimator, binary=True)
+
+
+class ConstantClassifier(object):
+
+    def __init__(self, func):
+        self.func = func
+        self.constant = None
+
+    def fit(self, x, y, **kwargs):
+        self.constant = self.func(y)
+
+    def predict(self, x, **kwargs):
+        return np.full((x.shape[0],), int(self.constant > .5))
+
+    def predict_proba(self, x, **kwargs):
+        p = np.zeros((x.shape[0], 2))
+        p[:,0] = 1 - self.constant
+        p[:,1] = self.constant
+        return p
+
+
+class ConstantRegressor(object):
+
+    def __init__(self, func):
+        self.func = func
+        self.constant = None
+
+    def fit(self, x, y, **kwargs):
+        self.constant = self.func(y)
+
+    def predict(self, x, **kwargs):
+        return np.full((x.shape[0],), self.constant)
 
 
 def wrap_sklearn_like_estimator(estimator):
